@@ -1,0 +1,151 @@
+import Property from '../models/propertyModel.js';
+
+// @desc    Fetch all properties
+// @route   GET /api/properties
+// @access  Public
+export const getProperties = async (req, res) => {
+  try {
+    const pageSize = 12;
+    const page = Number(req.query.pageNumber) || 1;
+    
+    // Build query based on filters
+    const query = {};
+    if (req.query.approved === 'false') {
+      query.approved = false;
+    } else if (req.query.approved === 'all') {
+      // Return both approved and unapproved
+    } else if (req.query.vendorId) {
+      query.vendor = req.query.vendorId;
+    } else {
+      query.approved = true;
+    }
+    
+    if (req.query.keyword) {
+      query.$or = [
+        { title: { $regex: req.query.keyword, $options: 'i' } },
+        { address: { $regex: req.query.keyword, $options: 'i' } }
+      ];
+    }
+    
+    if (req.query.city) query.city = req.query.city;
+    if (req.query.propertyType) query.propertyType = req.query.propertyType;
+    if (req.query.listingType) query.listingType = req.query.listingType;
+    
+    if (req.query.propertyType !== 'Plot') {
+      if (req.query.bedrooms) query.bedrooms = { $gte: Number(req.query.bedrooms) };
+      if (req.query.bathrooms) query.bathrooms = { $gte: Number(req.query.bathrooms) };
+    } else {
+      if (req.query.areaUnit) query.areaUnit = req.query.areaUnit;
+      if (req.query.facing) query.facing = req.query.facing;
+      if (req.query.cornerPlot) query.cornerPlot = req.query.cornerPlot === 'true';
+      if (req.query.plotType) query.plotType = req.query.plotType;
+      if (req.query.roadWidth) query.roadWidth = { $gte: Number(req.query.roadWidth) };
+    }
+
+    if (req.query.minPrice || req.query.maxPrice) {
+      query.price = {};
+      if (req.query.minPrice) query.price.$gte = Number(req.query.minPrice);
+      if (req.query.maxPrice) query.price.$lte = Number(req.query.maxPrice);
+    }
+
+    const count = await Property.countDocuments(query);
+    const properties = await Property.find(query)
+      .populate('vendor', 'name email mobile')
+      .limit(pageSize)
+      .skip(pageSize * (page - 1))
+      .sort({ createdAt: -1 });
+
+    res.json({ properties, page, pages: Math.ceil(count / pageSize), total: count });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Fetch single property
+// @route   GET /api/properties/:id
+// @access  Public
+export const getPropertyById = async (req, res) => {
+  try {
+    const isObjectId = req.params.id.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { _id: req.params.id } : { slug: req.params.id };
+    
+    const property = await Property.findOne(query).populate('vendor', 'name email mobile');
+    if (property) {
+      res.json(property);
+    } else {
+      res.status(404).json({ message: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Create a property
+// @route   POST /api/properties
+// @access  Private/Vendor
+export const createProperty = async (req, res) => {
+  try {
+    const property = new Property({
+      ...req.body,
+      vendor: req.user._id,
+      approved: false // Requires admin approval
+    });
+
+    const createdProperty = await property.save();
+    res.status(201).json(createdProperty);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update a property
+// @route   PUT /api/properties/:id
+// @access  Private/Vendor
+export const updateProperty = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (property) {
+      // Check if user is the vendor or admin
+      if (property.vendor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(401).json({ message: 'Not authorized to update this property' });
+      }
+
+      Object.assign(property, req.body);
+      
+      // If vendor updates, it might require re-approval (optional business logic)
+      if (req.user.role === 'vendor') {
+        property.approved = false; 
+      }
+
+      const updatedProperty = await property.save();
+      res.json(updatedProperty);
+    } else {
+      res.status(404).json({ message: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a property
+// @route   DELETE /api/properties/:id
+// @access  Private/Vendor or Admin
+export const deleteProperty = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (property) {
+      if (property.vendor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(401).json({ message: 'Not authorized to delete this property' });
+      }
+
+      await Property.deleteOne({ _id: property._id });
+      res.json({ message: 'Property removed' });
+    } else {
+      res.status(404).json({ message: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
