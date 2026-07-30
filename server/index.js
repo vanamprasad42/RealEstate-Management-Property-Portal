@@ -1,10 +1,22 @@
+// --- MUST BE AT THE VERY TOP OF INDEX.JS ---
+import dns from 'dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']); // Overrides system DNS to bypass port 53 / SRV restrictions
+
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { connectDB } from './config/db.js';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+import { connectDB } from './config/db.js';
+
+import authRoutes from './routes/authRoutes.js';
+import propertyRoutes from './routes/propertyRoutes.js';
+import cityRoutes from './routes/cityRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import inquiryRoutes from './routes/inquiryRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,13 +38,6 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
-
-import authRoutes from './routes/authRoutes.js';
-import propertyRoutes from './routes/propertyRoutes.js';
-import cityRoutes from './routes/cityRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
-import uploadRoutes from './routes/uploadRoutes.js';
-import inquiryRoutes from './routes/inquiryRoutes.js';
 
 // Basic Route
 app.get('/', (req, res) => {
