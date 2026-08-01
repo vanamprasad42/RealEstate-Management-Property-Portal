@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://realestate-management-property-portal.onrender.com/api',
+  baseURL: 'http://localhost:5000/api',
 });
 
 // Add a request interceptor to attach JWT token
