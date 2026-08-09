@@ -104,7 +104,7 @@ export const loginUser = async (req, res) => {
         // Fallback: Continue login flow even if email dispatch failed or timed out
       }
 
-      res.json({ requiresOtp: true, email: user.email, otp });
+      res.json({ requiresOtp: true, email: user.email });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -125,7 +125,7 @@ export const verifyOtp = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (otp !== '123456' && (!user.otp || user.otp !== otp || user.otpExpire < Date.now())) {
+    if (!user.otp || user.otp !== otp || user.otpExpire < Date.now()) {
       return res.status(400).json({ message: 'Invalid or expired OTP code' });
     }
 

@@ -27,12 +27,7 @@ const Login = () => {
       const { data } = await api.post('/auth/login', { email, password });
       if (data.requiresOtp) {
         setRequiresOtp(true);
-        if (data.otp) {
-          setOtp(data.otp);
-          toast.success(`Verification OTP generated: ${data.otp}`);
-        } else {
-          toast.info('Verification OTP sent to your email!');
-        }
+        toast.info('Verification OTP sent to your email!');
       } else {
         // Fallback if OTP is disabled on backend
         dispatch(setCredentials(data));
@@ -159,9 +154,6 @@ const Login = () => {
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  Didn't receive the email? Check Spam folder or enter code <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">123456</span>
-                </p>
               </div>
               
               <button 
