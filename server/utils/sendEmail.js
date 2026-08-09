@@ -2,19 +2,19 @@ import nodemailer from 'nodemailer';
 
 export const sendEmail = async (options) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    console.warn('[EMAIL] EMAIL_USER or EMAIL_PASSWORD not set. Skipping email dispatch.');
+    console.warn('[EMAIL] EMAIL_USER or EMAIL_PASSWORD not configured. Skipping email dispatch.');
     return;
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    connectionTimeout: 5000, // 5 seconds max connection timeout
-    greetingTimeout: 5000,
-    socketTimeout: 5000,
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // SSL/TLS
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
+    connectionTimeout: 8000,
   });
 
   const mailOptions = {
