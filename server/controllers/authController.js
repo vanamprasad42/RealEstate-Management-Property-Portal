@@ -81,28 +81,25 @@ export const loginUser = async (req, res) => {
       await user.save();
       console.log(`[DEV] Generated OTP for ${user.email}: ${otp}`);
 
-      // Send OTP via email
-      try {
-        await sendEmail({
-          email: user.email,
-          subject: 'RealEstate OTP Verification Code',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-              <h2 style="color: #4f46e5; text-align: center;">Two-Factor Authentication OTP</h2>
-              <p>Hello ${user.name},</p>
-              <p>Use the following 6-digit verification code to complete your login. This code is valid for 5 minutes.</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
-              </div>
-              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-              <p style="font-size: 12px; color: #999; text-align: center;">If you did not attempt to login, please secure your account.</p>
+      // Send OTP via email asynchronously in background for instant UI response
+      sendEmail({
+        email: user.email,
+        subject: 'RealEstate OTP Verification Code',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+            <h2 style="color: #4f46e5; text-align: center;">Two-Factor Authentication OTP</h2>
+            <p>Hello ${user.name},</p>
+            <p>Use the following 6-digit verification code to complete your login. This code is valid for 5 minutes.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
             </div>
-          `,
-        });
-      } catch (emailError) {
-        console.error(`[AUTH] Failed to send OTP email:`, emailError.message);
-        // Fallback: Continue login flow even if email dispatch failed or timed out
-      }
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #999; text-align: center;">If you did not attempt to login, please secure your account.</p>
+          </div>
+        `,
+      }).catch((emailError) => {
+        console.error(`[AUTH] Failed to send OTP email to ${user.email}:`, emailError.message);
+      });
 
       res.json({ requiresOtp: true, email: user.email });
     } else {
