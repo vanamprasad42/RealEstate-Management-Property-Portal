@@ -100,10 +100,8 @@ export const loginUser = async (req, res) => {
           `,
         });
       } catch (emailError) {
-        console.error(`[DEV] Failed to send OTP email:`, emailError.message);
-        if (process.env.NODE_ENV === 'production') {
-          return res.status(500).json({ message: 'Failed to send OTP verification email. Please try again.' });
-        }
+        console.error(`[AUTH] Failed to send OTP email:`, emailError.message);
+        // Fallback: Continue login flow even if email dispatch failed or timed out
       }
 
       res.json({ requiresOtp: true, email: user.email });
