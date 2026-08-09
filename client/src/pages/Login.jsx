@@ -27,7 +27,12 @@ const Login = () => {
       const { data } = await api.post('/auth/login', { email, password });
       if (data.requiresOtp) {
         setRequiresOtp(true);
-        toast.info('Verification OTP sent to your email!');
+        if (data.otp) {
+          setOtp(data.otp);
+          toast.success(`Verification OTP generated: ${data.otp}`);
+        } else {
+          toast.info('Verification OTP sent to your email!');
+        }
       } else {
         // Fallback if OTP is disabled on backend
         dispatch(setCredentials(data));

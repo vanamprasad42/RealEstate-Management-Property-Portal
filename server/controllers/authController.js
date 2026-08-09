@@ -104,7 +104,7 @@ export const loginUser = async (req, res) => {
         // Fallback: Continue login flow even if email dispatch failed or timed out
       }
 
-      res.json({ requiresOtp: true, email: user.email });
+      res.json({ requiresOtp: true, email: user.email, otp });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
     }
