@@ -63,6 +63,9 @@ export const registerUser = async (req, res) => {
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
 // @access  Public
+// @desc    Auth user & get token (Triggers Real-time Email OTP)
+// @route   POST /api/auth/login
+// @access  Public
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -79,29 +82,38 @@ export const loginUser = async (req, res) => {
       user.otp = otp;
       user.otpExpire = Date.now() + 5 * 60 * 1000; // 5 minutes
       await user.save();
-      console.log(`[DEV] Generated OTP for ${user.email}: ${otp}`);
+      console.log(`[AUTH] Generated real-time OTP for ${user.email}: ${otp}`);
 
-      // Send OTP via email asynchronously in background for instant UI response
-      sendEmail({
-        email: user.email,
-        subject: 'RealEstate OTP Verification Code',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-            <h2 style="color: #4f46e5; text-align: center;">Two-Factor Authentication OTP</h2>
-            <p>Hello ${user.name},</p>
-            <p>Use the following 6-digit verification code to complete your login. This code is valid for 5 minutes.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
+      // Send real-time OTP via email
+      try {
+        await sendEmail({
+          email: user.email,
+          subject: 'RealEstate OTP Verification Code',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+              <h2 style="color: #4f46e5; text-align: center;">Two-Factor Authentication OTP</h2>
+              <p>Hello ${user.name},</p>
+              <p>Use the following 6-digit verification code to complete your login. This code is valid for 5 minutes.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
+              </div>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #999; text-align: center;">If you did not attempt to login, please secure your account.</p>
             </div>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #999; text-align: center;">If you did not attempt to login, please secure your account.</p>
-          </div>
-        `,
-      }).catch((emailError) => {
-        console.error(`[AUTH] Failed to send OTP email to ${user.email}:`, emailError.message);
-      });
+          `,
+        });
+      } catch (emailError) {
+        console.error(`[AUTH ERROR] Failed to send real-time OTP email to ${user.email}:`, emailError.message);
+        return res.status(500).json({ 
+          message: 'Failed to send verification email. Please verify EMAIL_USER & EMAIL_PASSWORD settings on your server.' 
+        });
+      }
 
-      res.json({ requiresOtp: true, email: user.email });
+      res.json({ 
+        requiresOtp: true, 
+        email: user.email,
+        message: 'OTP has been sent to your email.'
+      });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -110,7 +122,52 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// @desc    Verify OTP and complete login
+// @desc    Resend real-time OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+export const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email address is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpire = Date.now() + 5 * 60 * 1000; // 5 minutes
+    await user.save();
+    console.log(`[AUTH] Resent real-time OTP for ${user.email}: ${otp}`);
+
+    await sendEmail({
+      email: user.email,
+      subject: 'RealEstate New OTP Verification Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #4f46e5; text-align: center;">New OTP Code</h2>
+          <p>Hello ${user.name},</p>
+          <p>Here is your new 6-digit verification code. This code is valid for 5 minutes.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
+          </div>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #999; text-align: center;">If you did not request this code, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    res.json({ message: 'A fresh OTP verification code has been sent to your email.' });
+  } catch (error) {
+    console.error('[AUTH ERROR] Resend OTP failed:', error.message);
+    res.status(500).json({ message: error.message || 'Failed to resend OTP email.' });
+  }
+};
+
+// @desc    Verify real-time OTP and complete login
 // @route   POST /api/auth/verify-otp
 // @access  Public
 export const verifyOtp = async (req, res) => {
@@ -122,11 +179,13 @@ export const verifyOtp = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (!user.otp || user.otp !== otp || user.otpExpire < Date.now()) {
-      return res.status(400).json({ message: 'Invalid or expired OTP code' });
+    const isValidOtp = user.otp && user.otp === otp && user.otpExpire > Date.now();
+
+    if (!isValidOtp) {
+      return res.status(400).json({ message: 'Invalid or expired OTP code. Please check your email or request a new code.' });
     }
 
-    // Clear OTP details
+    // Clear OTP details after successful verification
     user.otp = undefined;
     user.otpExpire = undefined;
 
@@ -264,13 +323,21 @@ export const forgotPassword = async (req, res) => {
       </div>
     `;
 
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      console.log(`[DEV] Password Reset Link: ${resetUrl}`);
+    }
+
     try {
       await sendEmail({
         email: user.email,
         subject: 'RealEstate Password Reset Request',
         html,
       });
-      res.json({ message: 'Password reset link sent to your email.' });
+      res.json({ 
+        message: 'Password reset link sent to your email.',
+        ...(isDev ? { devLink: resetUrl } : {})
+      });
     } catch (emailError) {
       console.error(`[DEV] Failed to send password reset email:`, emailError.message);
       console.log(`[DEV] Password Reset Link: ${resetUrl}`);

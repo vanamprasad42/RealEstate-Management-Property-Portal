@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../redux/slices/authSlice';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import { Mail, Lock, ShieldCheck, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,9 +16,21 @@ const Login = () => {
   const [requiresOtp, setRequiresOtp] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -27,9 +39,9 @@ const Login = () => {
       const { data } = await api.post('/auth/login', { email, password });
       if (data.requiresOtp) {
         setRequiresOtp(true);
-        toast.info('Verification OTP sent to your email!');
+        setCooldown(30);
+        toast.info(data.message || 'Verification OTP sent to your email!');
       } else {
-        // Fallback if OTP is disabled on backend
         dispatch(setCredentials(data));
         toast.success('Login Successful');
         navigate('/');
@@ -38,6 +50,20 @@ const Login = () => {
       toast.error(error.response?.data?.message || 'Login Failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (cooldown > 0 || resending) return;
+    setResending(true);
+    try {
+      const { data } = await api.post('/auth/resend-otp', { email });
+      toast.success(data.message || 'A new OTP has been sent to your email!');
+      setCooldown(30);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to resend OTP email');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -107,7 +133,7 @@ const Login = () => {
                 disabled={loading}
                 className="w-full bg-primary text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-50"
               >
-                {loading ? 'Authenticating...' : 'Login'}
+                {loading ? 'Sending OTP to email...' : 'Login'}
               </button>
             </form>
             <div className="flex flex-col gap-2 mt-6 text-center text-sm text-gray-600">
@@ -134,9 +160,9 @@ const Login = () => {
               <ArrowLeft size={14} /> Back to Login
             </button>
             
-            <h2 className="text-2xl font-black text-gray-900 mb-2">Enter verification code</h2>
+            <h2 className="text-2xl font-black text-gray-900 mb-2">Check your email</h2>
             <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-              We emailed a 6-digit OTP to <strong className="text-gray-800">{email}</strong>. Enter it below to complete verification.
+              We sent a 6-digit real-time verification code to <strong className="text-gray-800">{email}</strong>. Please check your inbox or spam folder.
             </p>
 
             <form onSubmit={handleOtpSubmit} className="space-y-5 text-left">
@@ -164,6 +190,19 @@ const Login = () => {
                 {otpLoading ? 'Verifying...' : 'Verify & Continue'} <ArrowRight size={18} />
               </button>
             </form>
+
+            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+              <span>Didn't receive the email?</span>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={cooldown > 0 || resending}
+                className="text-indigo-600 hover:text-indigo-800 font-bold disabled:text-gray-400 flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
+                {resending ? 'Resending...' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

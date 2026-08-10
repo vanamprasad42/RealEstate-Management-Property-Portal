@@ -3,23 +3,36 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, ExternalLink, ShieldAlert } from 'lucide-react';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [devLink, setDevLink] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setDevLink('');
     try {
       const { data } = await api.post('/auth/forgot-password', { email });
       toast.success(data.message || 'Password reset link sent to your email.');
-      setEmail('');
+      if (data.devLink) {
+        setDevLink(data.devLink);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to submit request.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getRelativeDevPath = (url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname + parsed.search;
+    } catch {
+      return url;
     }
   };
 
@@ -59,6 +72,28 @@ const ForgotPassword = () => {
             {loading ? 'Sending link...' : 'Send Reset Link'}
           </button>
         </form>
+
+        {devLink && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-left"
+          >
+            <div className="flex items-center gap-2 text-indigo-900 font-bold text-sm mb-1">
+              <ShieldAlert size={18} className="text-indigo-600" />
+              Dev Mode Reset Link
+            </div>
+            <p className="text-xs text-indigo-700 mb-3">
+              If email delivery was skipped or delayed, you can use the generated reset link directly:
+            </p>
+            <Link 
+              to={getRelativeDevPath(devLink)}
+              className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+            >
+              Reset Password Now <ExternalLink size={14} />
+            </Link>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );

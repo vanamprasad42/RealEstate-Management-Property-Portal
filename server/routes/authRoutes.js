@@ -8,7 +8,8 @@ import {
   forgotPassword, 
   resetPassword,
   toggleFavoriteProperty,
-  verifyOtp
+  verifyOtp,
+  resendOtp
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.post('/verify-otp', verifyOtp);
+router.post('/resend-otp', resendOtp);
 router.post('/logout', protect, logoutUser);
 router.post('/refresh-token', refreshAccessToken);
 router.post('/forgot-password', forgotPassword);
