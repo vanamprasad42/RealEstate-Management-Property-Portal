@@ -5,6 +5,29 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../utils/sendEmail.js';
 
+const getEmailFailureResponse = (error) => {
+  const code = error.code || error.responseCode || 'EMAIL_SEND_FAILED';
+  const isConfigError = error.message?.toLowerCase().includes('configuration missing');
+
+  if (isConfigError) {
+    return {
+      status: 500,
+      body: {
+        message: 'Email service is not configured on the production server.',
+        code: 'EMAIL_CONFIG_MISSING',
+      },
+    };
+  }
+
+  return {
+    status: 502,
+    body: {
+      message: 'Email provider rejected or timed out while sending OTP.',
+      code,
+    },
+  };
+};
+
 // Set refresh token in HTTP-only cookie
 const setRefreshTokenCookie = (res, token) => {
   res.cookie('refreshToken', token, {
@@ -103,10 +126,9 @@ export const loginUser = async (req, res) => {
           `,
         });
       } catch (emailError) {
-        console.error(`[AUTH ERROR] Failed to send real-time OTP email to ${user.email}:`, emailError.message);
-        return res.status(500).json({ 
-          message: 'Failed to send verification email. Please verify EMAIL_USER & EMAIL_PASSWORD settings on your server.' 
-        });
+        console.error(`[AUTH ERROR] Failed to send real-time OTP email to ${user.email}:`, emailError.code || emailError.responseCode || 'NO_CODE', emailError.message);
+        const { status, body } = getEmailFailureResponse(emailError);
+        return res.status(status).json(body);
       }
 
       res.json({ 
@@ -143,22 +165,28 @@ export const resendOtp = async (req, res) => {
     await user.save();
     console.log(`[AUTH] Resent real-time OTP for ${user.email}: ${otp}`);
 
-    await sendEmail({
-      email: user.email,
-      subject: 'RealEstate New OTP Verification Code',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-          <h2 style="color: #4f46e5; text-align: center;">New OTP Code</h2>
-          <p>Hello ${user.name},</p>
-          <p>Here is your new 6-digit verification code. This code is valid for 5 minutes.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'RealEstate New OTP Verification Code',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+            <h2 style="color: #4f46e5; text-align: center;">New OTP Code</h2>
+            <p>Hello ${user.name},</p>
+            <p>Here is your new 6-digit verification code. This code is valid for 5 minutes.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4f46e5; border: 2px dashed #4f46e5; padding: 10px 20px; border-radius: 8px; display: inline-block;">${otp}</span>
+            </div>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #999; text-align: center;">If you did not request this code, please ignore this email.</p>
           </div>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #999; text-align: center;">If you did not request this code, please ignore this email.</p>
-        </div>
-      `,
-    });
+        `,
+      });
+    } catch (emailError) {
+      console.error(`[AUTH ERROR] Failed to resend OTP email to ${user.email}:`, emailError.code || emailError.responseCode || 'NO_CODE', emailError.message);
+      const { status, body } = getEmailFailureResponse(emailError);
+      return res.status(status).json(body);
+    }
 
     res.json({ message: 'A fresh OTP verification code has been sent to your email.' });
   } catch (error) {
@@ -411,4 +439,3 @@ export const toggleFavoriteProperty = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-

@@ -17,12 +17,14 @@ import cityRoutes from './routes/cityRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import inquiryRoutes from './routes/inquiryRoutes.js';
+import { logEmailConfigStatus } from './utils/emailConfigStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
+logEmailConfigStatus();
 
 // Connect to Database
 connectDB();

@@ -1,37 +1,56 @@
 import nodemailer from 'nodemailer';
 
+const firstPresent = (...values) => values.find((value) => value && value.trim());
+
+const isGmailTransport = ({ service, host, user }) => {
+  return [service, host, user].some((value) => value?.toLowerCase().includes('gmail'));
+};
+
 export const sendEmail = async (options) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    const errorMsg = '[EMAIL ERROR] Missing EMAIL_USER or EMAIL_PASSWORD environment variables on production server.';
+  const emailUser = firstPresent(process.env.EMAIL_USER, process.env.SMTP_USER, process.env.MAIL_USER);
+  const rawEmailPassword = firstPresent(process.env.EMAIL_PASSWORD, process.env.EMAIL_PASS, process.env.SMTP_PASS, process.env.MAIL_PASS);
+  const emailService = firstPresent(process.env.EMAIL_SERVICE, process.env.SMTP_SERVICE);
+  const emailHost = firstPresent(process.env.EMAIL_HOST, process.env.SMTP_HOST);
+
+  if (!emailUser || !rawEmailPassword) {
+    const errorMsg = '[EMAIL ERROR] Missing email credentials. Set EMAIL_USER and EMAIL_PASSWORD on the production server.';
     console.error(errorMsg);
-    throw new Error('Email service configuration missing on server (EMAIL_USER or EMAIL_PASSWORD not set).');
+    throw new Error('Email service configuration missing on server.');
   }
+
+  const normalizedEmailUser = emailUser.trim();
+  const normalizedEmailService = emailService?.trim();
+  const normalizedEmailHost = emailHost?.trim();
+  const isGmail = isGmailTransport({
+    service: normalizedEmailService,
+    host: normalizedEmailHost,
+    user: normalizedEmailUser,
+  });
+  const emailPassword = isGmail ? rawEmailPassword.replace(/\s/g, '') : rawEmailPassword.trim();
 
   let transportConfig;
 
-  if (process.env.EMAIL_SERVICE) {
+  if (normalizedEmailService) {
     // Use named Nodemailer service (e.g., EMAIL_SERVICE=gmail)
     transportConfig = {
-      service: process.env.EMAIL_SERVICE,
+      service: normalizedEmailService,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: normalizedEmailUser,
+        pass: emailPassword,
       },
-      tls: { rejectUnauthorized: false },
     };
-  } else if (!process.env.EMAIL_HOST || process.env.EMAIL_HOST.includes('gmail')) {
+  } else if (!normalizedEmailHost || normalizedEmailHost.includes('gmail')) {
     // Default Gmail configuration using service: 'gmail' (most reliable for cloud hosts)
     transportConfig = {
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: normalizedEmailUser,
+        pass: emailPassword,
       },
-      tls: { rejectUnauthorized: false },
     };
   } else {
     // Custom SMTP host configuration (e.g. Brevo, SendGrid, Mailgun, Mailtrap)
-    const host = process.env.EMAIL_HOST;
+    const host = normalizedEmailHost;
     const port = process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT, 10) : 465;
     const secure = process.env.EMAIL_SECURE !== undefined ? process.env.EMAIL_SECURE === 'true' : port === 465;
 
@@ -40,10 +59,9 @@ export const sendEmail = async (options) => {
       port,
       secure,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: normalizedEmailUser,
+        pass: emailPassword,
       },
-      tls: { rejectUnauthorized: false },
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 15000,
@@ -53,21 +71,19 @@ export const sendEmail = async (options) => {
   const transporter = nodemailer.createTransport(transportConfig);
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `"RealEstate Platform" <${process.env.EMAIL_USER}>`,
+    from: process.env.EMAIL_FROM || `"RealEstate Platform" <${normalizedEmailUser}>`,
     to: options.email,
     subject: options.subject,
     html: options.html,
   };
 
   try {
-    console.log(`[EMAIL] Attempting to send OTP email to ${options.email} via ${transportConfig.service || transportConfig.host || 'SMTP'}...`);
+    console.log(`[EMAIL] Sending email to ${options.email} via ${transportConfig.service || `${transportConfig.host}:${transportConfig.port}` || 'SMTP'} as ${normalizedEmailUser}...`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`[EMAIL SUCCESS] Email sent to ${options.email}. Message ID: ${info.messageId}`);
     return info;
   } catch (error) {
-    console.error(`[EMAIL ERROR] Failed sending email to ${options.email}:`, error.message);
+    console.error(`[EMAIL ERROR] Failed sending email to ${options.email}:`, error.code || error.responseCode || 'NO_CODE', error.message);
     throw error;
   }
 };
-
-
