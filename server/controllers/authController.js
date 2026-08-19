@@ -337,8 +337,13 @@ export const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    // Reset URL
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+    // Determine frontend URL dynamically (checks process.env.FRONTEND_URL, request origin, and production fallback)
+    const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+    const frontendUrl = (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim())
+      || origin
+      || 'https://realestate-frontend-h051.onrender.com';
+    const resetUrl = `${frontendUrl.replace(/\/$/, '')}/reset-password/${resetToken}`;
+
     
     // HTML email body
     const html = `
