@@ -368,19 +368,17 @@ export const forgotPassword = async (req, res) => {
         html,
       });
       res.json({ 
-        message: 'Password reset link sent to your email.',
-        ...(isDev ? { devLink: resetUrl } : {})
+        message: 'Password reset link has been sent to your email address. Please check your inbox.',
       });
     } catch (emailError) {
-      console.error(`[DEV] Failed to send password reset email:`, emailError.message);
-      console.log(`[DEV] Password Reset Link: ${resetUrl}`);
+      console.error(`[EMAIL ERROR] Failed to send password reset email:`, emailError.message);
       
       if (process.env.NODE_ENV === 'production') {
-        return res.status(500).json({ message: 'Failed to send password reset email. Please try again.' });
+        return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
       }
       
       res.json({ 
-        message: 'Password reset link generated (logged to server console in development).',
+        message: 'Email delivery failed in dev mode. Temporary reset link generated below:',
         devLink: resetUrl
       });
     }
