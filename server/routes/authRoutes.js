@@ -9,7 +9,8 @@ import {
   resetPassword,
   toggleFavoriteProperty,
   verifyOtp,
-  resendOtp
+  resendOtp,
+  emailConfigStatus
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -19,6 +20,7 @@ router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
+router.get('/email-config-status', emailConfigStatus);
 router.post('/logout', protect, logoutUser);
 router.post('/refresh-token', refreshAccessToken);
 router.post('/forgot-password', forgotPassword);

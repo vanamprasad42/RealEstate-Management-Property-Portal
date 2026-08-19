@@ -4,6 +4,7 @@ import { generateAccessToken, generateRefreshToken } from '../utils/generateToke
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../utils/sendEmail.js';
+import { getEmailConfigStatus } from '../utils/emailConfigStatus.js';
 
 const getEmailFailureResponse = (error) => {
   const code = error.code || error.responseCode || 'EMAIL_SEND_FAILED';
@@ -142,6 +143,10 @@ export const loginUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+export const emailConfigStatus = (req, res) => {
+  res.json(getEmailConfigStatus());
 };
 
 // @desc    Resend real-time OTP
