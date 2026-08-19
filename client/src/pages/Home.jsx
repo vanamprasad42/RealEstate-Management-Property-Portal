@@ -24,7 +24,15 @@ const Home = () => {
   const { cities, loading: cityLoading } = useSelector((state) => state.cities);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const resetToken = searchParams.get('token') || searchParams.get('resetToken');
+    if (resetToken) {
+      navigate(`/reset-password?token=${resetToken}`, { replace: true });
+      return;
+    }
+
     const fetchFeatured = async () => {
+
       dispatch(setPropertiesRequest());
       try {
         const { data } = await api.get('/properties?limit=6');

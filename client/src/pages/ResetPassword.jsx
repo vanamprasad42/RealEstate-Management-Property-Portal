@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-toastify';
 import { Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 
 const ResetPassword = () => {
-  const { token } = useParams();
+  const { token: paramToken } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  const token = paramToken || searchParams.get('token') || searchParams.get('resetToken');
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();

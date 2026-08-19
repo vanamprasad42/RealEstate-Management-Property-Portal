@@ -342,7 +342,8 @@ export const forgotPassword = async (req, res) => {
     const frontendUrl = (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim())
       || origin
       || 'https://realestate-frontend-h051.onrender.com';
-    const resetUrl = `${frontendUrl.replace(/\/$/, '')}/reset-password/${resetToken}`;
+    const resetUrl = `${frontendUrl.replace(/\/$/, '')}/?token=${resetToken}`;
+
 
     
     // HTML email body

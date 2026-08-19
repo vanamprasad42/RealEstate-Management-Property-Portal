@@ -30,7 +30,9 @@ function App() {
           <Route path="property/:slug" element={<PropertyDetails />} />
           <Route path="city/:slug" element={<CityProperties />} />
           <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="reset-password" element={<ResetPassword />} />
           <Route path="reset-password/:token" element={<ResetPassword />} />
+
           
           {/* Protected Routes */}
           <Route element={<ProtectedRoute roles={['vendor', 'admin']} />}>
