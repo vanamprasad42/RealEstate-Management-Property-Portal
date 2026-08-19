@@ -10,7 +10,8 @@ export const sendEmail = async (options) => {
   }
 
   const resend = new Resend(apiKey.trim());
-  const from = process.env.EMAIL_FROM || 'RealEstate Platform <onboarding@resend.dev>';
+  const from = process.env.EMAIL_FROM || 'Prasad Vanam <onboarding@resend.dev>';
+
 
   try {
     console.log(`[EMAIL] Sending email to ${options.email} via Resend...`);
