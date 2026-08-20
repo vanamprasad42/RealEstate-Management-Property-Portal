@@ -10,22 +10,22 @@ const getEmailFailureResponse = (error) => {
   const code = error.code || error.responseCode || 'EMAIL_SEND_FAILED';
   const message = error.message || '';
 
-  if (message.toLowerCase().includes('configuration missing') || message.toLowerCase().includes('resend_api_key')) {
+  if (message.toLowerCase().includes('configuration missing') || message.toLowerCase().includes('email_user')) {
     return {
       status: 500,
       body: {
-        message: 'RESEND_API_KEY is missing on Render server. Please set RESEND_API_KEY in Render Environment Variables.',
+        message: 'SMTP email configuration missing on server. Please set EMAIL_USER and EMAIL_PASSWORD in environment variables.',
         code: 'EMAIL_CONFIG_MISSING',
       },
     };
   }
 
-  if (message.toLowerCase().includes('testing emails to your own email address') || message.toLowerCase().includes('domain')) {
+  if (code === 'EAUTH' || message.toLowerCase().includes('invalid login') || message.toLowerCase().includes('authentication failed')) {
     return {
-      status: 403,
+      status: 500,
       body: {
-        message: `Resend free plan currently limits email delivery to your registered account email (prasadvanam42@gmail.com). To send to all user emails, add your custom domain at resend.com/domains.`,
-        code: 'RESEND_DOMAIN_UNVERIFIED',
+        message: 'SMTP authentication failed. Please verify EMAIL_USER and EMAIL_PASSWORD in environment variables.',
+        code: 'EMAIL_AUTH_FAILED',
       },
     };
   }
@@ -33,11 +33,12 @@ const getEmailFailureResponse = (error) => {
   return {
     status: 502,
     body: {
-      message: message || 'Email provider rejected or timed out while sending OTP.',
+      message: message || 'SMTP email provider rejected or timed out while sending email.',
       code,
     },
   };
 };
+
 
 
 // Set refresh token in HTTP-only cookie

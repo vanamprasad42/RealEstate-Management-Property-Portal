@@ -1,24 +1,28 @@
 const hasValue = (value) => Boolean(value && value.trim());
 
 export const getEmailConfigStatus = () => {
-  const hasApiKey = hasValue(process.env.RESEND_API_KEY);
+  const hasUser = hasValue(process.env.EMAIL_USER);
+  const hasPass = hasValue(process.env.EMAIL_PASSWORD || process.env.EMAIL_PASS);
+  const isConfigured = hasUser && hasPass;
   const fromConfigured = hasValue(process.env.EMAIL_FROM);
 
   return {
-    configured: hasApiKey,
-    hasApiKey,
-    provider: 'resend',
+    configured: isConfigured,
+    hasUser,
+    hasPass,
+    provider: 'nodemailer',
     fromConfigured,
   };
 };
 
 export const logEmailConfigStatus = () => {
-  const { hasApiKey } = getEmailConfigStatus();
+  const { configured } = getEmailConfigStatus();
 
-  if (!hasApiKey) {
-    console.warn('[EMAIL CONFIG] Missing RESEND_API_KEY. Emails will fail until RESEND_API_KEY is set in production.');
+  if (!configured) {
+    console.warn('[EMAIL CONFIG] Missing EMAIL_USER or EMAIL_PASSWORD. Email sending will fail until SMTP credentials are configured.');
     return;
   }
 
-  console.log('[EMAIL CONFIG] Resend API key loaded.');
+  console.log('[EMAIL CONFIG] Nodemailer SMTP configuration loaded.');
 };
+
