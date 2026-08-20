@@ -83,27 +83,8 @@ export const sendEmail = async (options) => {
     console.log(`[EMAIL SUCCESS] Email sent to ${options.email}. Message ID: ${info.messageId}`);
     return info;
   } catch (error) {
-    console.error(`[EMAIL ERROR] Primary Nodemailer send failed (${error.code || error.message}). Attempting fallback...`);
-
-    try {
-      const fallbackTransporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: cleanUser, pass: cleanPass },
-        connectionTimeout: 10000,
-      });
-
-      const info = await fallbackTransporter.sendMail({
-        from,
-        to: options.email,
-        subject: options.subject,
-        html: options.html,
-      });
-      console.log(`[EMAIL SUCCESS] Fallback email sent to ${options.email}. Message ID: ${info.messageId}`);
-      return info;
-    } catch (fallbackErr) {
-      console.error(`[EMAIL ERROR] Fallback email failed for ${options.email}:`, fallbackErr.message);
-      throw error;
-    }
+    console.error(`[EMAIL ERROR] Nodemailer failed to send email to ${options.email}:`, error.message || error);
+    throw error;
   }
 };
 
