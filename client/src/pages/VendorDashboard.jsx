@@ -49,7 +49,7 @@ const VendorDashboard = () => {
   };
 
   useEffect(() => {
-    if (!userInfo || userInfo.role !== 'vendor') {
+    if (!userInfo) {
       navigate('/login');
       return;
     }

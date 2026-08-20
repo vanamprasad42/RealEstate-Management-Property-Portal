@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
-import { Home, User as UserIcon, LogOut, Menu, X } from 'lucide-react';
+import { Home, User as UserIcon, LogOut, Menu, X, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -33,18 +33,25 @@ const Navbar = () => {
 
             {userInfo ? (
               <div className="flex items-center gap-4">
-                {userInfo.role === 'vendor' && (
-                  <Link to="/vendor/dashboard" className="text-gray-700 hover:text-primary transition-colors font-medium">Dashboard</Link>
-                )}
+                <Link to="/add-property" className="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5 text-sm">
+                  <Plus size={16} /> Add Property
+                </Link>
+                
+                <Link to="/vendor/dashboard" className="text-gray-700 hover:text-primary transition-colors font-medium">Dashboard</Link>
+                
                 {userInfo.role === 'admin' && (
                   <Link to="/admin/dashboard" className="text-gray-700 hover:text-primary transition-colors font-medium">Admin</Link>
                 )}
+                
                 <div className="relative group">
                   <button className="flex items-center gap-2 text-gray-700 hover:text-primary transition-colors font-medium">
                     <UserIcon size={20} />
                     {userInfo.name}
                   </button>
                   <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                    <Link to="/add-property" className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50">
+                      <Plus size={16} /> Add Property
+                    </Link>
                     <button onClick={handleLogout} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                       <LogOut size={16} /> Logout
                     </button>
@@ -109,11 +116,12 @@ const Navbar = () => {
                 
                 {userInfo ? (
                   <>
-                    {userInfo.role === 'vendor' && (
-                      <Link to="/vendor/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-gray-700 hover:text-primary transition-colors border-b border-gray-50">
-                        Dashboard
-                      </Link>
-                    )}
+                    <Link to="/add-property" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-indigo-600 hover:text-indigo-800 transition-colors border-b border-gray-50 flex items-center gap-2">
+                      <Plus size={20} /> Add Property
+                    </Link>
+                    <Link to="/vendor/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-gray-700 hover:text-primary transition-colors border-b border-gray-50">
+                      Dashboard
+                    </Link>
                     {userInfo.role === 'admin' && (
                       <Link to="/admin/dashboard" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-gray-700 hover:text-primary transition-colors border-b border-gray-50">
                         Admin

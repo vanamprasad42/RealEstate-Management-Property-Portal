@@ -14,6 +14,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VendorDashboard from './pages/VendorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AddProperty from './pages/AddProperty';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 function App() {
@@ -35,7 +36,8 @@ function App() {
 
           
           {/* Protected Routes */}
-          <Route element={<ProtectedRoute roles={['vendor', 'admin']} />}>
+          <Route element={<ProtectedRoute roles={['user', 'vendor', 'admin']} />}>
+            <Route path="add-property" element={<AddProperty />} />
             <Route path="vendor/dashboard" element={<VendorDashboard />} />
           </Route>
           

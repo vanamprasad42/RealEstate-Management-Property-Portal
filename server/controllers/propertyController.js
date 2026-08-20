@@ -1,4 +1,6 @@
 import Property from '../models/propertyModel.js';
+import User from '../models/userModel.js';
+import jwt from 'jsonwebtoken';
 
 // @desc    Fetch all properties
 // @route   GET /api/properties
@@ -71,6 +73,24 @@ export const getPropertyById = async (req, res) => {
     
     const property = await Property.findOne(query).populate('vendor', 'name email mobile');
     if (property) {
+      if (!property.approved) {
+        let isAuthorized = false;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+          try {
+            const token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.id);
+            if (user && (user.role === 'admin' || user._id.toString() === property.vendor._id.toString())) {
+              isAuthorized = true;
+            }
+          } catch (e) {
+            // Invalid token
+          }
+        }
+        if (!isAuthorized) {
+          return res.status(403).json({ message: 'This property listing is pending admin verification and is not published on the webpage yet.' });
+        }
+      }
       res.json(property);
     } else {
       res.status(404).json({ message: 'Property not found' });
@@ -85,10 +105,11 @@ export const getPropertyById = async (req, res) => {
 // @access  Private/Vendor
 export const createProperty = async (req, res) => {
   try {
+    const isAdmin = req.user && req.user.role === 'admin';
     const property = new Property({
       ...req.body,
       vendor: req.user._id,
-      approved: false // Requires admin approval
+      approved: isAdmin ? (req.body.approved ?? true) : false // Requires admin approval before publishing
     });
 
     const createdProperty = await property.save();
@@ -113,8 +134,8 @@ export const updateProperty = async (req, res) => {
 
       Object.assign(property, req.body);
       
-      // If vendor updates, it might require re-approval (optional business logic)
-      if (req.user.role === 'vendor') {
+      // If user or vendor updates, reset approval so admin re-verifies before publishing
+      if (req.user.role !== 'admin') {
         property.approved = false; 
       }
 

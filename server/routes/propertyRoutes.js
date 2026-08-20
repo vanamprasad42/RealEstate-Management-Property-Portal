@@ -12,11 +12,11 @@ const router = express.Router();
 
 router.route('/')
   .get(getProperties)
-  .post(protect, authorizeRoles('vendor', 'admin'), createProperty);
+  .post(protect, authorizeRoles('user', 'vendor', 'admin'), createProperty);
 
 router.route('/:id')
   .get(getPropertyById)
-  .put(protect, authorizeRoles('vendor', 'admin'), updateProperty)
-  .delete(protect, authorizeRoles('vendor', 'admin'), deleteProperty);
+  .put(protect, authorizeRoles('user', 'vendor', 'admin'), updateProperty)
+  .delete(protect, authorizeRoles('user', 'vendor', 'admin'), deleteProperty);
 
 export default router;

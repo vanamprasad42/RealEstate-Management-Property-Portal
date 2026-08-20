@@ -42,4 +42,22 @@ router.post('/', protect, upload.array('images', 5), async (req, res) => {
   }
 });
 
+router.get('/files', async (req, res) => {
+  try {
+    const uploadDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadDir)) {
+      return res.json({ files: [] });
+    }
+    const files = await fs.promises.readdir(uploadDir);
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const imageUrls = files
+      .filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file))
+      .map(file => `${protocol}://${host}/uploads/${file}`);
+    res.json({ files: imageUrls });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;
