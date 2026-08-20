@@ -7,29 +7,37 @@ import jwt from 'jsonwebtoken';
 // @access  Public
 export const getProperties = async (req, res) => {
   try {
-    const pageSize = 12;
+    const pageSize = req.query.pageSize === 'all' ? 0 : (Number(req.query.pageSize) || Number(req.query.limit) || 12);
     const page = Number(req.query.pageNumber) || 1;
     
     // Build query based on filters
     const query = {};
+
+    if (req.query.vendorId) {
+      query.vendor = req.query.vendorId;
+    }
+
     if (req.query.approved === 'false') {
       query.approved = false;
+    } else if (req.query.approved === 'true') {
+      query.approved = true;
     } else if (req.query.approved === 'all') {
       // Return both approved and unapproved
-    } else if (req.query.vendorId) {
-      query.vendor = req.query.vendorId;
-    } else {
+    } else if (!req.query.vendorId) {
+      // Default public behavior
       query.approved = true;
     }
     
     if (req.query.keyword) {
       query.$or = [
         { title: { $regex: req.query.keyword, $options: 'i' } },
-        { address: { $regex: req.query.keyword, $options: 'i' } }
+        { address: { $regex: req.query.keyword, $options: 'i' } },
+        { city: { $regex: req.query.keyword, $options: 'i' } },
+        { state: { $regex: req.query.keyword, $options: 'i' } }
       ];
     }
     
-    if (req.query.city) query.city = req.query.city;
+    if (req.query.city) query.city = { $regex: `^${req.query.city}$`, $options: 'i' };
     if (req.query.propertyType) query.propertyType = req.query.propertyType;
     if (req.query.listingType) query.listingType = req.query.listingType;
     
@@ -51,13 +59,18 @@ export const getProperties = async (req, res) => {
     }
 
     const count = await Property.countDocuments(query);
-    const properties = await Property.find(query)
+    let propertyQuery = Property.find(query)
       .populate('vendor', 'name email mobile')
-      .limit(pageSize)
-      .skip(pageSize * (page - 1))
       .sort({ createdAt: -1 });
 
-    res.json({ properties, page, pages: Math.ceil(count / pageSize), total: count });
+    if (pageSize > 0) {
+      propertyQuery = propertyQuery.limit(pageSize).skip(pageSize * (page - 1));
+    }
+
+    const properties = await propertyQuery;
+    const totalPages = pageSize > 0 ? Math.ceil(count / pageSize) : 1;
+
+    res.json({ properties, page, pages: totalPages, total: count });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

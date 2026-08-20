@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import { LayoutDashboard, Home as HomeIcon, MessageSquare, Plus, Edit2, Trash2, X, Upload, Loader } from 'lucide-react';
+import { LayoutDashboard, Home as HomeIcon, MessageSquare, Plus, Edit2, Trash2, X, Upload, Loader, Search, Filter } from 'lucide-react';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
@@ -13,6 +13,11 @@ const VendorDashboard = () => {
   const [properties, setProperties] = useState([]);
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Search & Filter state for vendor properties
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedCityFilter, setSelectedCityFilter] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
 
   // Form local state
   const [showModal, setShowModal] = useState(false);
@@ -277,65 +282,138 @@ const VendorDashboard = () => {
         </div>
       )}
 
-      {activeTab === 'properties' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {properties.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              <HomeIcon size={48} className="mx-auto text-gray-300 mb-4" />
-              <p>You haven't listed any properties yet.</p>
+      {activeTab === 'properties' && (() => {
+        const filteredVendorProperties = properties.filter((prop) => {
+          const matchesKeyword = !searchKeyword || 
+            prop.title?.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+            prop.city?.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+            prop.address?.toLowerCase().includes(searchKeyword.toLowerCase());
+
+          const matchesCity = !selectedCityFilter || prop.city?.toLowerCase() === selectedCityFilter.toLowerCase();
+          const matchesCategory = !selectedCategoryFilter || prop.propertyType === selectedCategoryFilter;
+
+          return matchesKeyword && matchesCity && matchesCategory;
+        });
+
+        const vendorCities = Array.from(new Set(properties.map(p => p.city).filter(Boolean)));
+
+        return (
+          <div className="space-y-6">
+            {/* Search and Filters bar */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Search my listings by title, city, address..." 
+                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-600 outline-none"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 font-semibold">
+                  Showing {filteredVendorProperties.length} of {properties.length} listings
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-gray-100">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Location Filter</label>
+                  <select 
+                    className="w-full text-xs font-semibold px-3 py-2 border border-gray-200 rounded-lg outline-none bg-white text-gray-700"
+                    value={selectedCityFilter}
+                    onChange={(e) => setSelectedCityFilter(e.target.value)}
+                  >
+                    <option value="">All My Locations</option>
+                    {vendorCities.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Category Filter</label>
+                  <select 
+                    className="w-full text-xs font-semibold px-3 py-2 border border-gray-200 rounded-lg outline-none bg-white text-gray-700"
+                    value={selectedCategoryFilter}
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  >
+                    <option value="">All Categories</option>
+                    <option value="Apartment">Apartment</option>
+                    <option value="Villa">Villa</option>
+                    <option value="House">House</option>
+                    <option value="Plot">Plot</option>
+                  </select>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-500 uppercase font-bold text-xs border-b">
-                  <tr>
-                    <th className="px-6 py-4">Property</th>
-                    <th className="px-6 py-4">City</th>
-                    <th className="px-6 py-4">Price</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Verification</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {properties.map((prop) => (
-                    <tr key={prop._id} className="hover:bg-gray-50/50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <img src={prop.images[0]} alt="" className="w-10 h-10 object-cover rounded-lg bg-gray-50" />
-                          <span className="font-extrabold text-gray-900 line-clamp-1">{prop.title}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-gray-700">{prop.city}</td>
-                      <td className="px-6 py-4 font-black text-indigo-600">${prop.price.toLocaleString()}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full capitalize ${prop.status === 'available' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600'}`}>
-                          {prop.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full capitalize ${prop.approved ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
-                          {prop.approved ? 'Approved' : 'Pending'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => handleEdit(prop)} className="p-2 border rounded-lg text-gray-600 hover:text-indigo-600 transition-colors bg-white shadow-sm">
-                            <Edit2 size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(prop._id)} className="p-2 border rounded-lg text-gray-600 hover:text-red-600 transition-colors bg-white shadow-sm">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {filteredVendorProperties.length === 0 ? (
+                <div className="p-12 text-center text-gray-500">
+                  <HomeIcon size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p>No property listings found matching your search.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-bold text-xs border-b">
+                      <tr>
+                        <th className="px-6 py-4">Property</th>
+                        <th className="px-6 py-4">Category</th>
+                        <th className="px-6 py-4">City</th>
+                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Admin Live Status</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredVendorProperties.map((prop) => (
+                        <tr key={prop._id} className="hover:bg-gray-50/50">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <img src={prop.images[0] || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=300&q=80'} alt="" className="w-10 h-10 object-cover rounded-lg bg-gray-50 border" />
+                              <div>
+                                <span className="font-extrabold text-gray-900 line-clamp-1">{prop.title}</span>
+                                <span className="text-xs text-gray-400">{prop.address}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-gray-700">{prop.propertyType} ({prop.listingType})</td>
+                          <td className="px-6 py-4 font-semibold text-gray-700">{prop.city}</td>
+                          <td className="px-6 py-4 font-black text-indigo-600">${prop.price.toLocaleString()}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full capitalize ${prop.status === 'available' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600'}`}>
+                              {prop.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full capitalize ${prop.approved ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {prop.approved ? 'Live & Approved' : 'Pending Admin Verification'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => handleEdit(prop)} className="p-2 border rounded-lg text-gray-600 hover:text-indigo-600 transition-colors bg-white shadow-sm" title="Edit listing">
+                                <Edit2 size={14} />
+                              </button>
+                              <button onClick={() => handleDelete(prop._id)} className="p-2 border rounded-lg text-gray-600 hover:text-red-600 transition-colors bg-white shadow-sm" title="Delete listing">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {activeTab === 'inquiries' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

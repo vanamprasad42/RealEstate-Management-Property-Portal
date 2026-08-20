@@ -32,6 +32,17 @@ const Login = () => {
     return () => clearInterval(timer);
   }, [cooldown]);
 
+  const redirectByUserRole = (userData) => {
+    const role = userData?.role || userData?.user?.role;
+    if (role === 'admin') {
+      navigate('/admin/dashboard');
+    } else if (role === 'vendor') {
+      navigate('/vendor/dashboard');
+    } else {
+      navigate('/');
+    }
+  };
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -44,7 +55,7 @@ const Login = () => {
       } else {
         dispatch(setCredentials(data));
         toast.success('Login Successful');
-        navigate('/');
+        redirectByUserRole(data);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login Failed');
@@ -77,7 +88,7 @@ const Login = () => {
       const { data } = await api.post('/auth/verify-otp', { email, otp });
       dispatch(setCredentials(data));
       toast.success('Verification successful! Welcome back.');
-      navigate('/');
+      redirectByUserRole(data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Verification failed');
     } finally {
