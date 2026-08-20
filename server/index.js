@@ -1,6 +1,8 @@
 // --- MUST BE AT THE VERY TOP OF INDEX.JS ---
 import dns from 'dns';
 dns.setServers(['8.8.8.8', '8.8.4.4']); // Overrides system DNS to bypass port 53 / SRV restrictions
+try { dns.setDefaultResultOrder('ipv4first'); } catch (e) {}
+
 
 import express from 'express';
 import dotenv from 'dotenv';
