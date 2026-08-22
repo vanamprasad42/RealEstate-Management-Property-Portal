@@ -1,28 +1,35 @@
 const hasValue = (value) => Boolean(value && value.trim());
 
 export const getEmailConfigStatus = () => {
+  const hasBrevoKey = hasValue(process.env.BREVO_API_KEY || process.env.BREVO_API_V3_KEY || process.env.SIB_API_KEY);
   const hasUser = hasValue(process.env.EMAIL_USER);
   const hasPass = hasValue(process.env.EMAIL_PASSWORD || process.env.EMAIL_PASS);
-  const isConfigured = hasUser && hasPass;
+  const isConfigured = hasBrevoKey || (hasUser && hasPass);
   const fromConfigured = hasValue(process.env.EMAIL_FROM);
 
   return {
     configured: isConfigured,
+    provider: hasBrevoKey ? 'brevo_api' : (isConfigured ? 'nodemailer' : 'none'),
+    hasBrevoKey,
     hasUser,
     hasPass,
-    provider: 'nodemailer',
     fromConfigured,
   };
 };
 
 export const logEmailConfigStatus = () => {
-  const { configured } = getEmailConfigStatus();
+  const status = getEmailConfigStatus();
 
-  if (!configured) {
-    console.warn('[EMAIL CONFIG] Missing EMAIL_USER or EMAIL_PASSWORD. Email sending will fail until SMTP credentials are configured.');
+  if (!status.configured) {
+    console.warn('[EMAIL CONFIG] Missing BREVO_API_KEY or EMAIL_USER/EMAIL_PASSWORD. Email sending will fail until configured.');
     return;
   }
 
-  console.log('[EMAIL CONFIG] Nodemailer SMTP configuration loaded.');
+  if (status.hasBrevoKey) {
+    console.log('[EMAIL CONFIG] Brevo API v3 configuration loaded.');
+  } else {
+    console.log('[EMAIL CONFIG] Nodemailer SMTP configuration loaded.');
+  }
 };
+
 

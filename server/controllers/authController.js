@@ -10,11 +10,22 @@ const getEmailFailureResponse = (error) => {
   const code = error.code || error.responseCode || 'EMAIL_SEND_FAILED';
   const message = error.message || '';
 
+  if (code === 'BREVO_UNAUTHORIZED_IP' || message.includes('unrecognised IP') || message.includes('authorised_ips') || message.includes('525 5.7.1')) {
+    return {
+      status: 403,
+      body: {
+        message: 'Brevo rejected email request: Authorized IPs restriction is ON. Please open https://app.brevo.com/security/authorised_ips in your Brevo Dashboard and turn off IP Whitelisting.',
+        code: 'BREVO_UNAUTHORIZED_IP',
+        actionUrl: 'https://app.brevo.com/security/authorised_ips',
+      },
+    };
+  }
+
   if (message.toLowerCase().includes('configuration missing') || message.toLowerCase().includes('email_user')) {
     return {
       status: 500,
       body: {
-        message: 'SMTP email configuration missing on server. Please set EMAIL_USER and EMAIL_PASSWORD in environment variables.',
+        message: 'Email service configuration missing on server. Please set BREVO_API_KEY or EMAIL_USER and EMAIL_PASSWORD in environment variables.',
         code: 'EMAIL_CONFIG_MISSING',
       },
     };
@@ -24,7 +35,7 @@ const getEmailFailureResponse = (error) => {
     return {
       status: 500,
       body: {
-        message: 'SMTP authentication failed. Please verify EMAIL_USER and EMAIL_PASSWORD in environment variables.',
+        message: 'Email authentication failed. Please verify BREVO_API_KEY or EMAIL_USER and EMAIL_PASSWORD in environment variables.',
         code: 'EMAIL_AUTH_FAILED',
       },
     };
@@ -33,11 +44,12 @@ const getEmailFailureResponse = (error) => {
   return {
     status: 502,
     body: {
-      message: message || 'SMTP email provider rejected or timed out while sending email.',
+      message: message || 'Email provider rejected or timed out while sending email.',
       code,
     },
   };
 };
+
 
 
 
