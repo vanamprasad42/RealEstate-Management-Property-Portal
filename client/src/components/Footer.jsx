@@ -9,7 +9,7 @@ const Footer = () => {
           <p className="text-gray-400 text-sm mt-1">Your dream home awaits.</p>
         </div>
         <div className="text-sm text-gray-400 flex items-center gap-1">
-          &copy; {new Date().getFullYear()} RealEstate. Made with <Heart size={16} className="text-red-500 inline" /> by Antigravity.
+          &copy; {new Date().getFullYear()} RealEstate. Made with <Heart size={16} className="text-red-500 inline" /> by Prasad.
         </div>
       </div>
     </footer>
