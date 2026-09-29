@@ -25,26 +25,40 @@ const PropertyDetails = () => {
       setLoading(true);
       try {
         const { data } = await api.get(`/properties/${slug}`);
-        setProperty(data);
-        setActiveImage(data.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');
+        const normalizedProperty = {
+          ...data,
+          images: Array.isArray(data.images) ? data.images : [],
+          amenities: Array.isArray(data.amenities) ? data.amenities : []
+        };
+        setProperty(normalizedProperty);
+        setActiveImage(normalizedProperty.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80');
 
         // Check if user has this property in favorites
         if (userInfo && userInfo.favorites) {
           setIsFavorite(userInfo.favorites.some(favId => favId._id === data._id || favId === data._id));
         }
 
-        // Fetch similar properties
-        const res = await api.get(`/properties?city=${data.city}&propertyType=${data.propertyType}`);
-        setSimilarProperties(res.data.properties.filter(p => p._id !== data._id && p.approved));
+        // Similar properties are supplementary: a failure here must not make
+        // an otherwise valid property-detail page fail to load.
+        try {
+          const res = await api.get('/properties', {
+            params: { city: data.city, propertyType: data.propertyType }
+          });
+          const properties = Array.isArray(res.data?.properties) ? res.data.properties : [];
+          setSimilarProperties(properties.filter(p => p._id !== data._id && p.approved));
+        } catch {
+          setSimilarProperties([]);
+        }
       } catch (error) {
-        toast.error('Failed to load property details');
+        setProperty(null);
+        toast.error(error.response?.data?.message || 'Failed to load property details');
       } finally {
         setLoading(false);
       }
     };
 
     fetchPropertyDetails();
-  }, [slug, userInfo]);
+  }, [slug]);
 
   const handleFavoriteToggle = async () => {
     if (!userInfo) {
@@ -135,7 +149,7 @@ const PropertyDetails = () => {
             </div>
             
             <div className="flex items-center md:flex-col items-end gap-3">
-              <span className="text-3xl font-black text-indigo-600">${property.price.toLocaleString()}</span>
+              <span className="text-3xl font-black text-indigo-600">${Number(property.price || 0).toLocaleString()}</span>
               
               <div className="flex gap-2">
                 <button 
@@ -153,7 +167,7 @@ const PropertyDetails = () => {
             <div className="h-[450px] rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
               <img src={activeImage} alt={property.title} className="w-full h-full object-cover transition-all" />
             </div>
-            {property.images.length > 1 && (
+            {property.images?.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {property.images.map((img, index) => (
                   <button 
@@ -239,7 +253,7 @@ const PropertyDetails = () => {
           </div>
 
           {/* Amenities */}
-          {property.amenities.length > 0 && (
+          {property.amenities?.length > 0 && (
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <h3 className="font-extrabold text-xl text-gray-900 mb-4">Amenities Offered</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -313,12 +327,12 @@ const PropertyDetails = () => {
                 {similarProperties.slice(0, 3).map((item) => (
                   <Link to={`/property/${item.slug}`} key={item._id} className="flex gap-3 group">
                     <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-gray-50">
-                      <img src={item.images[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src={item.images?.[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=240&q=80'} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-bold text-gray-800 group-hover:text-indigo-600 transition-colors line-clamp-1 text-sm">{item.title}</h4>
                       <p className="text-xs text-gray-400 mt-1">{item.city}</p>
-                      <p className="text-sm font-black text-indigo-600 mt-1">${item.price.toLocaleString()}</p>
+                      <p className="text-sm font-black text-indigo-600 mt-1">${Number(item.price || 0).toLocaleString()}</p>
                     </div>
                   </Link>
                 ))}

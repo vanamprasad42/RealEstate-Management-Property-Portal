@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setPropertiesRequest, setPropertiesSuccess, setPropertiesFail } from '../redux/slices/propertySlice';
 import { setCitiesRequest, setCitiesSuccess, setCitiesFail } from '../redux/slices/citySlice';
 import api from '../services/api';
-import { MapPin, Search, Home as HomeIcon, Key, Mail, Handshake, Eye, Headset, ArrowRight } from 'lucide-react';
+import { MapPin, Search, Home as HomeIcon, Key, Mail, Handshake, Eye, Headset, ArrowRight, Bot, Sparkles } from 'lucide-react';
 import apartmentImg from '../assets/apartment_category.png';
 import villaImg from '../assets/villa_category.png';
 import houseImg from '../assets/house_category.png';
@@ -31,29 +31,76 @@ const Home = () => {
       return;
     }
 
-    const fetchFeatured = async () => {
+    // Fast-path: Hydrate instantly from local cache if Redux store is empty
+    let hasLocalProps = false;
+    let hasLocalCities = false;
+    try {
+      if (properties.length === 0) {
+        const cachedProps = localStorage.getItem('re_featured_properties');
+        if (cachedProps) {
+          const parsed = JSON.parse(cachedProps);
+          if (parsed?.properties?.length) {
+            dispatch(setPropertiesSuccess(parsed));
+            hasLocalProps = true;
+          }
+        }
+      } else {
+        hasLocalProps = true;
+      }
 
-      dispatch(setPropertiesRequest());
+      if (cities.length === 0) {
+        const cachedCities = localStorage.getItem('re_cities');
+        if (cachedCities) {
+          const parsed = JSON.parse(cachedCities);
+          if (parsed?.length) {
+            dispatch(setCitiesSuccess(parsed));
+            hasLocalCities = true;
+          }
+        }
+      } else {
+        hasLocalCities = true;
+      }
+    } catch (e) {
+      // Ignore cache storage errors
+    }
+
+    // Background stale-while-revalidate data fetching
+    const fetchFeatured = async () => {
+      if (!hasLocalProps) {
+        dispatch(setPropertiesRequest());
+      }
       try {
         const { data } = await api.get('/properties?limit=6');
         dispatch(setPropertiesSuccess(data));
+        try {
+          localStorage.setItem('re_featured_properties', JSON.stringify(data));
+        } catch (e) {}
       } catch (error) {
-        dispatch(setPropertiesFail(error.response?.data?.message || error.message));
+        if (!hasLocalProps) {
+          dispatch(setPropertiesFail(error.response?.data?.message || error.message));
+        }
       }
     };
 
     const fetchCities = async () => {
-      dispatch(setCitiesRequest());
+      if (!hasLocalCities) {
+        dispatch(setCitiesRequest());
+      }
       try {
         const { data } = await api.get('/cities');
         dispatch(setCitiesSuccess(data));
+        try {
+          localStorage.setItem('re_cities', JSON.stringify(data));
+        } catch (e) {}
       } catch (error) {
-        dispatch(setCitiesFail(error.response?.data?.message || error.message));
+        if (!hasLocalCities) {
+          dispatch(setCitiesFail(error.response?.data?.message || error.message));
+        }
       }
     };
 
-    fetchFeatured();
-    fetchCities();
+    // Run both queries concurrently
+    Promise.allSettled([fetchFeatured(), fetchCities()]);
   }, [dispatch]);
 
   const handleSearch = (e) => {
@@ -90,7 +137,7 @@ const Home = () => {
           animate={{ scale: 1, opacity: 0.4 }}
           transition={{ duration: 1.8 }}
           className="absolute inset-0 bg-cover bg-center" 
-          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")' }}
+          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=75")' }}
         ></motion.div>
         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent"></div>
         
@@ -127,20 +174,32 @@ const Home = () => {
             transition={{ duration: 0.7, delay: 0.3, type: "spring" }}
             className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl text-gray-900 max-w-4xl mx-auto border border-gray-100"
           >
-            {/* Rent/Buy Toggle */}
-            <div className="flex gap-2 mb-4 justify-start">
-              <button 
-                onClick={() => setListingType('sale')}
-                className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${listingType === 'sale' ? 'bg-primary text-white shadow-md shadow-indigo-600/20' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+            {/* Rent/Buy Toggle & Ask AI Button */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setListingType('sale')}
+                  className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${listingType === 'sale' ? 'bg-primary text-white shadow-md shadow-indigo-600/20' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  Buy Properties
+                </button>
+                <button 
+                  onClick={() => setListingType('rent')}
+                  className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${listingType === 'rent' ? 'bg-primary text-white shadow-md shadow-indigo-600/20' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  Rent Properties
+                </button>
+              </div>
+
+              {/* Ask AI Pill Button Matching Image 2 Step 1 */}
+              <Link
+                to="/ai-assistant"
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs shadow-md shadow-blue-500/25 transition-all transform hover:scale-105"
               >
-                Buy Properties
-              </button>
-              <button 
-                onClick={() => setListingType('rent')}
-                className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 ${listingType === 'rent' ? 'bg-primary text-white shadow-md shadow-indigo-600/20' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-              >
-                Rent Properties
-              </button>
+                <Bot size={16} className="text-white animate-bounce-subtle" />
+                <span>Ask AI Property Assistant</span>
+                <span className="bg-white/25 text-[10px] px-1.5 py-0.5 rounded-md uppercase font-bold">New</span>
+              </Link>
             </div>
 
             <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -148,7 +207,7 @@ const Home = () => {
                 <Search className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Keyword (e.g. 3BHK, Villa)" 
+                  placeholder="Search city, property, or ask AI..." 
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 text-sm text-gray-900 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -212,10 +271,10 @@ const Home = () => {
           </div>
         </motion.div>
 
-        {cityLoading ? (
+        {(cityLoading && cities.length === 0) ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 bg-gray-200 animate-pulse rounded-2xl"></div>
+              <div key={i} className="h-48 bg-gray-200 animate-pulse rounded-2xl"></div>
             ))}
           </div>
         ) : (
@@ -232,6 +291,8 @@ const Home = () => {
                   <img 
                     src={c.image || 'https://images.unsplash.com/photo-1570129476815-ba368ac77013?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'} 
                     alt={c.cityName}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"></div>
@@ -265,14 +326,19 @@ const Home = () => {
             </Link>
           </motion.div>
 
-          {propLoading ? (
+          {(propLoading && properties.length === 0) ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[1, 2, 3].map((item) => (
+              {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div key={item} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
                   <div className="h-64 bg-gray-200"></div>
                   <div className="p-6">
                     <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
                     <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+                    <div className="flex justify-between pt-4 border-t border-gray-100">
+                      <div className="h-4 bg-gray-200 rounded w-12"></div>
+                      <div className="h-4 bg-gray-200 rounded w-12"></div>
+                      <div className="h-4 bg-gray-200 rounded w-12"></div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -292,6 +358,8 @@ const Home = () => {
                       <img 
                         src={property.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'} 
                         alt={property.title}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full uppercase shadow-md">

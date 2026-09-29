@@ -15,6 +15,8 @@ import ResetPassword from './pages/ResetPassword';
 import VendorDashboard from './pages/VendorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import AddProperty from './pages/AddProperty';
+import AiAssistant from './pages/AiAssistant';
+import AiChatWidget from './components/AiChatWidget';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 function App() {
@@ -28,6 +30,7 @@ function App() {
           <Route path="register" element={<Register />} />
           <Route path="properties" element={<Properties />} />
           <Route path="cities" element={<Cities />} />
+          <Route path="ai-assistant" element={<AiAssistant />} />
           <Route path="property/:slug" element={<PropertyDetails />} />
           <Route path="city/:slug" element={<CityProperties />} />
           <Route path="forgot-password" element={<ForgotPassword />} />
@@ -46,6 +49,7 @@ function App() {
           </Route>
         </Route>
       </Routes>
+      <AiChatWidget />
     </Router>
   );
 }

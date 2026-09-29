@@ -31,6 +31,13 @@ const propertySchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Database indexes for high-speed queries on landing page & search
+propertySchema.index({ approved: 1, createdAt: -1 });
+propertySchema.index({ approved: 1, city: 1, createdAt: -1 });
+propertySchema.index({ approved: 1, propertyType: 1, createdAt: -1 });
+propertySchema.index({ approved: 1, listingType: 1, createdAt: -1 });
+propertySchema.index({ vendor: 1, createdAt: -1 });
+
 // Generate SEO-friendly slug before save
 propertySchema.pre('save', async function() {
   if (!this.isModified('title') && this.slug) {

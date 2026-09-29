@@ -1,5 +1,6 @@
 import User from '../models/userModel.js';
 import Property from '../models/propertyModel.js';
+import { invalidatePropertiesCache } from './propertyController.js';
 
 // @desc    Get all users
 // @route   GET /api/admin/users
@@ -34,6 +35,7 @@ export const approveProperty = async (req, res) => {
     if (property) {
       property.approved = req.body.approved; // true or false
       const updatedProperty = await property.save();
+      invalidatePropertiesCache();
       res.json(updatedProperty);
     } else {
       res.status(404).json({ message: 'Property not found' });

@@ -1,12 +1,32 @@
 import City from '../models/cityModel.js';
 import Property from '../models/propertyModel.js';
 
+// In-memory cache for cities
+let citiesCache = null;
+let citiesCacheTime = 0;
+const CITIES_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+export const invalidateCitiesCache = () => {
+  citiesCache = null;
+  citiesCacheTime = 0;
+};
+
 // @desc    Fetch all cities
 // @route   GET /api/cities
 // @access  Public
 export const getCities = async (req, res) => {
   try {
-    const cities = await City.find({});
+    const now = Date.now();
+    if (citiesCache && (now - citiesCacheTime < CITIES_CACHE_TTL)) {
+      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+      return res.json(citiesCache);
+    }
+
+    const cities = await City.find({}).lean();
+    citiesCache = cities;
+    citiesCacheTime = now;
+
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
     res.json(cities);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -59,6 +79,7 @@ export const createCity = async (req, res) => {
       image
     });
 
+    invalidateCitiesCache();
     res.status(201).json(city);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,6 +94,7 @@ export const deleteCity = async (req, res) => {
     const city = await City.findById(req.params.id);
     if (city) {
       await City.deleteOne({ _id: city._id });
+      invalidateCitiesCache();
       res.json({ message: 'City removed' });
     } else {
       res.status(404).json({ message: 'City not found' });

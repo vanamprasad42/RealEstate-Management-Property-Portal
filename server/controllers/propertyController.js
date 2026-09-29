@@ -2,6 +2,16 @@ import Property from '../models/propertyModel.js';
 import User from '../models/userModel.js';
 import jwt from 'jsonwebtoken';
 
+// In-memory cache for landing page featured properties
+let featuredPropertiesCache = null;
+let featuredPropertiesCacheTime = 0;
+const FEATURED_CACHE_TTL = 60 * 1000; // 60 seconds
+
+export const invalidatePropertiesCache = () => {
+  featuredPropertiesCache = null;
+  featuredPropertiesCacheTime = 0;
+};
+
 // @desc    Fetch all properties
 // @route   GET /api/properties
 // @access  Public
@@ -10,6 +20,25 @@ export const getProperties = async (req, res) => {
     const pageSize = req.query.pageSize === 'all' ? 0 : (Number(req.query.pageSize) || Number(req.query.limit) || 12);
     const page = Number(req.query.pageNumber) || 1;
     
+    // Check if this is the default landing page featured request (page 1, limit <= 6, no custom filters)
+    const isLandingFeatured = 
+      page === 1 &&
+      (pageSize > 0 && pageSize <= 6) &&
+      !req.query.keyword &&
+      !req.query.city &&
+      !req.query.propertyType &&
+      !req.query.listingType &&
+      !req.query.vendorId &&
+      req.query.approved !== 'false' &&
+      !req.query.minPrice &&
+      !req.query.maxPrice;
+
+    const now = Date.now();
+    if (isLandingFeatured && featuredPropertiesCache && (now - featuredPropertiesCacheTime < FEATURED_CACHE_TTL)) {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      return res.json(featuredPropertiesCache);
+    }
+
     // Build query based on filters
     const query = {};
 
@@ -58,19 +87,29 @@ export const getProperties = async (req, res) => {
       if (req.query.maxPrice) query.price.$lte = Number(req.query.maxPrice);
     }
 
-    const count = await Property.countDocuments(query);
+    // Run count and data query concurrently for maximum speed
+    const countPromise = Property.countDocuments(query);
     let propertyQuery = Property.find(query)
       .populate('vendor', 'name email mobile')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     if (pageSize > 0) {
       propertyQuery = propertyQuery.limit(pageSize).skip(pageSize * (page - 1));
     }
 
-    const properties = await propertyQuery;
+    const [count, properties] = await Promise.all([countPromise, propertyQuery]);
     const totalPages = pageSize > 0 ? Math.ceil(count / pageSize) : 1;
 
-    res.json({ properties, page, pages: totalPages, total: count });
+    const result = { properties, page, pages: totalPages, total: count };
+
+    if (isLandingFeatured) {
+      featuredPropertiesCache = result;
+      featuredPropertiesCacheTime = now;
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    }
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -126,6 +165,7 @@ export const createProperty = async (req, res) => {
     });
 
     const createdProperty = await property.save();
+    invalidatePropertiesCache();
     res.status(201).json(createdProperty);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -153,6 +193,7 @@ export const updateProperty = async (req, res) => {
       }
 
       const updatedProperty = await property.save();
+      invalidatePropertiesCache();
       res.json(updatedProperty);
     } else {
       res.status(404).json({ message: 'Property not found' });
@@ -175,6 +216,7 @@ export const deleteProperty = async (req, res) => {
       }
 
       await Property.deleteOne({ _id: property._id });
+      invalidatePropertiesCache();
       res.json({ message: 'Property removed' });
     } else {
       res.status(404).json({ message: 'Property not found' });

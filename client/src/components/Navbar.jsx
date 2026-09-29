@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
-import { Home, User as UserIcon, LogOut, Menu, X, Plus } from 'lucide-react';
+import { Home, User as UserIcon, LogOut, Menu, X, Plus, Bot, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,6 +30,11 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-6">
             <Link to="/properties" className="text-gray-700 hover:text-primary transition-colors font-medium">Properties</Link>
             <Link to="/cities" className="text-gray-700 hover:text-primary transition-colors font-medium">Cities</Link>
+            <Link to="/ai-assistant" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100/80 transition-all font-semibold text-sm border border-blue-200/60 shadow-xs">
+              <Bot size={17} className="text-blue-600" />
+              <span>AI Assistant</span>
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            </Link>
 
             {userInfo ? (
               <div className="flex items-center gap-4">
@@ -112,6 +117,9 @@ const Navbar = () => {
                 </Link>
                 <Link to="/cities" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-gray-700 hover:text-primary transition-colors border-b border-gray-50">
                   Cities
+                </Link>
+                <Link to="/ai-assistant" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-lg font-semibold text-blue-600 hover:text-blue-800 transition-colors border-b border-gray-50 flex items-center gap-2">
+                  <Bot size={20} className="text-blue-600" /> AI Assistant
                 </Link>
                 
                 {userInfo ? (

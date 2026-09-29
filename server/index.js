@@ -8,6 +8,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -19,6 +20,7 @@ import cityRoutes from './routes/cityRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import inquiryRoutes from './routes/inquiryRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import { logEmailConfigStatus } from './utils/emailConfigStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +34,9 @@ logEmailConfigStatus();
 connectDB();
 
 const app = express();
+
+// High performance gzip/brotli compression for fast JSON payloads
+app.use(compression());
 
 // Middleware
 const allowedOrigins = [
@@ -68,6 +73,7 @@ app.use('/api/cities', cityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/inquiries', inquiryRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error Handling Middleware
 app.use((req, res, next) => {
