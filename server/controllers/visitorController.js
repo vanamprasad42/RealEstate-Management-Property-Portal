@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import geoip from 'geoip-lite';
 import VisitorLocation from '../models/visitorLocationModel.js';
+import User from '../models/userModel.js';
 
 // Helper to get country name from ISO code
 const getCountryName = (countryCode) => {
@@ -171,11 +173,11 @@ export const trackVisitor = async (req, res) => {
 
     let countryCode = req.body?.countryCode || geo?.country || (isPrivateIp(rawIp) ? 'IN' : 'UN');
     let country = req.body?.country || getCountryName(countryCode);
-    let region = req.body?.region || geo?.region || (isPrivateIp(rawIp) ? 'Local' : 'Unknown');
+    let region = req.body?.region || geo?.region || (isPrivateIp(rawIp) ? 'Telangana' : 'Unknown');
     let city = req.body?.city || geo?.city || clientCity || (isPrivateIp(rawIp) ? 'Hyderabad (Local)' : 'Unknown');
-    let latitude = clientLat || ((geo?.ll && geo.ll[0]) ? geo.ll[0] : null);
-    let longitude = clientLon || ((geo?.ll && geo.ll[1]) ? geo.ll[1] : null);
-    let timezone = geo?.timezone || clientTimezone || 'UTC';
+    let latitude = clientLat || ((geo?.ll && geo.ll[0]) ? geo.ll[0] : (isPrivateIp(rawIp) ? 17.3850 : null));
+    let longitude = clientLon || ((geo?.ll && geo.ll[1]) ? geo.ll[1] : (isPrivateIp(rawIp) ? 78.4867 : null));
+    let timezone = geo?.timezone || clientTimezone || 'Asia/Kolkata';
 
     // If exact address not provided by client but we have coordinates, reverse geocode now!
     if (!exactAddress && latitude && longitude) {
@@ -194,7 +196,10 @@ export const trackVisitor = async (req, res) => {
     }
 
     // Optional user ID if authenticated
-    const userId = req.user ? req.user._id : (req.body?.userId || null);
+    let userId = req.user ? req.user._id : (req.body?.userId || null);
+    if (!userId || userId === 'null' || userId === 'undefined' || !mongoose.Types.ObjectId.isValid(userId)) {
+      userId = null;
+    }
 
     // Session aggregation: if same IP and device visited in the last 30 minutes, update lastVisitAt
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
@@ -284,12 +289,18 @@ export const trackVisitor = async (req, res) => {
 // @access  Private/Admin
 export const getVisitorStats = async (req, res) => {
   try {
-    const totalVisits = await VisitorLocation.countDocuments();
+    const totalRecords = await VisitorLocation.countDocuments();
     const uniqueIps = await VisitorLocation.distinct('ip');
+
+    // Aggregate total hit count across all sessions
+    const totalHitsAgg = await VisitorLocation.aggregate([
+      { $group: { _id: null, totalHits: { $sum: { $ifNull: ['$visitCount', 1] } } } }
+    ]);
+    const totalVisits = (totalHitsAgg && totalHitsAgg[0]?.totalHits) ? totalHitsAgg[0].totalHits : totalRecords;
 
     // Aggregate by City
     const cityWise = await VisitorLocation.aggregate([
-      { $group: { _id: '$city', count: { $sum: '$visitCount' } } },
+      { $group: { _id: '$city', count: { $sum: { $ifNull: ['$visitCount', 1] } } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
       { $project: { city: '$_id', count: 1, _id: 0 } }
@@ -300,7 +311,7 @@ export const getVisitorStats = async (req, res) => {
       { $group: { 
           _id: '$country', 
           code: { $first: '$countryCode' },
-          count: { $sum: '$visitCount' } 
+          count: { $sum: { $ifNull: ['$visitCount', 1] } } 
       } },
       { $sort: { count: -1 } },
       { $limit: 10 },
@@ -309,13 +320,13 @@ export const getVisitorStats = async (req, res) => {
 
     // Aggregate by Device
     const deviceWise = await VisitorLocation.aggregate([
-      { $group: { _id: '$device', count: { $sum: '$visitCount' } } },
+      { $group: { _id: '$device', count: { $sum: { $ifNull: ['$visitCount', 1] } } } },
       { $project: { device: '$_id', count: 1, _id: 0 } }
     ]);
 
     // Aggregate by Browser
     const browserWise = await VisitorLocation.aggregate([
-      { $group: { _id: '$browser', count: { $sum: '$visitCount' } } },
+      { $group: { _id: '$browser', count: { $sum: { $ifNull: ['$visitCount', 1] } } } },
       { $project: { browser: '$_id', count: 1, _id: 0 } }
     ]);
 
@@ -328,6 +339,7 @@ export const getVisitorStats = async (req, res) => {
 
     res.json({
       totalVisits,
+      totalRecords,
       uniqueVisitors: uniqueIps.length,
       cityWise,
       countryWise,
@@ -336,6 +348,7 @@ export const getVisitorStats = async (req, res) => {
       recentVisitors
     });
   } catch (error) {
+    console.error('Error fetching visitor stats:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -374,6 +387,7 @@ export const getVisitorLogs = async (req, res) => {
       total: count
     });
   } catch (error) {
+    console.error('Error fetching visitor logs:', error);
     res.status(500).json({ message: error.message });
   }
 };

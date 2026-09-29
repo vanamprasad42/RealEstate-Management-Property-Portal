@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import './userModel.js';
 
 const visitorLocationSchema = new mongoose.Schema({
   ip: { 

@@ -15,7 +15,7 @@ import { toast } from 'react-toastify';
 import { 
   Users, Building, ShieldAlert, BarChart3, Trash2, ShieldCheck, MapPin, X, Plus, Loader, 
   Edit2, Search, Filter, Home as HomeIcon, Upload, CheckCircle, XCircle, ExternalLink,
-  Globe, Monitor, Smartphone, RefreshCw, Eye, Compass
+  Globe, Monitor, Smartphone, RefreshCw, Eye, Compass, AlertCircle
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -64,14 +64,17 @@ const AdminDashboard = () => {
   const [visitorStats, setVisitorStats] = useState(null);
   const [visitorLoading, setVisitorLoading] = useState(false);
   const [visitorFilter, setVisitorFilter] = useState('');
+  const [visitorError, setVisitorError] = useState(null);
 
   const fetchVisitorStats = async () => {
     setVisitorLoading(true);
+    setVisitorError(null);
     try {
       const { data } = await api.get('/visitors/stats');
       setVisitorStats(data);
     } catch (err) {
-      // Non-critical, do not block admin panel
+      console.error('Failed to load visitor statistics:', err);
+      setVisitorError(err.response?.data?.message || err.message || 'Failed to load visitor statistics');
     } finally {
       setVisitorLoading(false);
     }
@@ -890,10 +893,25 @@ const AdminDashboard = () => {
               <Loader className="animate-spin text-indigo-600 mx-auto mb-3" size={32} />
               <p className="text-sm font-semibold text-gray-600">Retrieving visitor location telemetry from MongoDB...</p>
             </div>
-          ) : !visitorStats ? (
+          ) : visitorError ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-red-100 shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-3">
+                <AlertCircle size={24} />
+              </div>
+              <h4 className="text-base font-bold text-gray-900 mb-1">Failed to Load Visitor Telemetry</h4>
+              <p className="text-sm text-gray-500 mb-4">{visitorError}</p>
+              <button 
+                onClick={fetchVisitorStats}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition shadow-xs"
+              >
+                <RefreshCw size={14} /> Retry Telemetry
+              </button>
+            </div>
+          ) : (!visitorStats || (visitorStats.totalVisits === 0 && (!visitorStats.recentVisitors || visitorStats.recentVisitors.length === 0))) ? (
             <div className="p-12 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
               <Globe size={40} className="mx-auto text-gray-300 mb-2" />
               <p className="text-gray-500 font-medium">No visitor telemetry records found yet.</p>
+              <p className="text-xs text-gray-400 mt-1">Telemetry records will automatically appear as visitors navigate the portal.</p>
             </div>
           ) : (
             <>
