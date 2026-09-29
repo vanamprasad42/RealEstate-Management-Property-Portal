@@ -21,6 +21,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import inquiryRoutes from './routes/inquiryRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
+import visitorRoutes from './routes/visitorRoutes.js';
 import { logEmailConfigStatus } from './utils/emailConfigStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +75,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/visitors', visitorRoutes);
 
 // Error Handling Middleware
 app.use((req, res, next) => {

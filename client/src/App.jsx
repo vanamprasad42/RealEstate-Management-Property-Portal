@@ -17,11 +17,13 @@ import AdminDashboard from './pages/AdminDashboard';
 import AddProperty from './pages/AddProperty';
 import AiAssistant from './pages/AiAssistant';
 import AiChatWidget from './components/AiChatWidget';
+import VisitorTracker from './components/VisitorTracker';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 function App() {
   return (
     <Router>
+      <VisitorTracker />
       <ToastContainer position="top-right" autoClose={3000} />
       <Routes>
         <Route path="/" element={<MainLayout />}>

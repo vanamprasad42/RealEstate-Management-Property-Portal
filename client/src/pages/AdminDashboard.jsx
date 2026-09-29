@@ -14,7 +14,8 @@ import api from '../services/api';
 import { toast } from 'react-toastify';
 import { 
   Users, Building, ShieldAlert, BarChart3, Trash2, ShieldCheck, MapPin, X, Plus, Loader, 
-  Edit2, Search, Filter, Home as HomeIcon, Upload, CheckCircle, XCircle, ExternalLink 
+  Edit2, Search, Filter, Home as HomeIcon, Upload, CheckCircle, XCircle, ExternalLink,
+  Globe, Monitor, Smartphone, RefreshCw, Eye, Compass
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -58,6 +59,23 @@ const AdminDashboard = () => {
   });
   const [selectedImages, setSelectedImages] = useState([]);
   const [uploading, setUploading] = useState(false);
+
+  // Visitor Location Tracking state
+  const [visitorStats, setVisitorStats] = useState(null);
+  const [visitorLoading, setVisitorLoading] = useState(false);
+  const [visitorFilter, setVisitorFilter] = useState('');
+
+  const fetchVisitorStats = async () => {
+    setVisitorLoading(true);
+    try {
+      const { data } = await api.get('/visitors/stats');
+      setVisitorStats(data);
+    } catch (err) {
+      // Non-critical, do not block admin panel
+    } finally {
+      setVisitorLoading(false);
+    }
+  };
 
   const fetchAdminData = async () => {
     dispatch(setAdminRequest());
@@ -120,6 +138,7 @@ const AdminDashboard = () => {
     fetchAllProperties();
     fetchPendingProperties();
     fetchCities();
+    fetchVisitorStats();
   }, [userInfo, navigate]);
 
   const handleBlockToggle = async (userId) => {
@@ -370,6 +389,12 @@ const AdminDashboard = () => {
           className={`flex items-center gap-2 px-4 py-2.5 border-b-2 font-bold text-sm transition-all ${activeTab === 'cities' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
         >
           <MapPin size={18} /> City Settings
+        </button>
+        <button 
+          onClick={() => { setActiveTab('visitors'); fetchVisitorStats(); }}
+          className={`flex items-center gap-2 px-4 py-2.5 border-b-2 font-bold text-sm transition-all ${activeTab === 'visitors' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+        >
+          <Globe size={18} /> Visitor Locations {visitorStats?.totalVisits !== undefined ? `(${visitorStats.totalVisits})` : ''}
         </button>
       </div>
 
@@ -832,6 +857,279 @@ const AdminDashboard = () => {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* VISITOR LOCATION DETAILS IN MONGODB */}
+      {activeTab === 'visitors' && (
+        <div className="space-y-6">
+          {/* Header Bar */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
+            <div>
+              <h3 className="font-extrabold text-lg text-gray-900 flex items-center gap-2">
+                <Globe className="text-indigo-600" size={22} /> Visitor Location Details (Saved in MongoDB)
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Real-time geographic IP telemetry, city/state resolution, device type, and visit paths stored in the <code className="bg-gray-200 px-1 py-0.5 rounded text-indigo-700 font-mono">visitorlocations</code> table.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={fetchVisitorStats}
+                disabled={visitorLoading}
+                className="bg-white border border-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-2 text-xs shadow-xs"
+              >
+                <RefreshCw size={14} className={visitorLoading ? "animate-spin text-indigo-600" : ""} /> Refresh Telemetry
+              </button>
+            </div>
+          </div>
+
+          {visitorLoading && !visitorStats ? (
+            <div className="p-16 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <Loader className="animate-spin text-indigo-600 mx-auto mb-3" size={32} />
+              <p className="text-sm font-semibold text-gray-600">Retrieving visitor location telemetry from MongoDB...</p>
+            </div>
+          ) : !visitorStats ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <Globe size={40} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-gray-500 font-medium">No visitor telemetry records found yet.</p>
+            </div>
+          ) : (
+            <>
+              {/* 4 Overview Stat Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-center text-gray-400 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Recorded Hits</span>
+                    <Eye size={18} className="text-indigo-600" />
+                  </div>
+                  <p className="text-3xl font-black text-gray-900">{visitorStats.totalVisits || 0}</p>
+                  <p className="text-xs text-gray-400 mt-1">Aggregated page views</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-center text-gray-400 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Unique Visitor IPs</span>
+                    <Users size={18} className="text-purple-600" />
+                  </div>
+                  <p className="text-3xl font-black text-purple-600">{visitorStats.uniqueVisitors || 0}</p>
+                  <p className="text-xs text-gray-400 mt-1">Distinct client machines</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-center text-gray-400 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Top Country</span>
+                    <Globe size={18} className="text-emerald-600" />
+                  </div>
+                  <p className="text-2xl font-black text-emerald-600 truncate">{visitorStats.countryWise?.[0]?.country || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 mt-1">{visitorStats.countryWise?.[0]?.count ? `${visitorStats.countryWise[0].count} visits recorded` : 'Awaiting data'}</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex justify-between items-center text-gray-400 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Top City</span>
+                    <MapPin size={18} className="text-blue-600" />
+                  </div>
+                  <p className="text-2xl font-black text-blue-600 truncate">{visitorStats.cityWise?.[0]?.city || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 mt-1">{visitorStats.cityWise?.[0]?.count ? `${visitorStats.cityWise[0].count} visits recorded` : 'Awaiting data'}</p>
+                </div>
+              </div>
+
+              {/* Geographic & Device Distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* City Distribution */}
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                  <h4 className="font-extrabold text-base text-gray-900 mb-4 flex items-center gap-2">
+                    <MapPin size={16} className="text-indigo-600" /> Top Visitor Cities
+                  </h4>
+                  {visitorStats.cityWise?.length === 0 ? (
+                    <p className="text-sm text-gray-400">No city telemetry available.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {visitorStats.cityWise?.slice(0, 6).map((c, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-gray-700">{c.city || 'Unknown'}</span>
+                          <div className="flex items-center gap-3 w-1/2">
+                            <div className="bg-gray-100 h-2 rounded-full w-full overflow-hidden">
+                              <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${Math.min(100, (c.count / (visitorStats.totalVisits || 1)) * 100)}%` }}></div>
+                            </div>
+                            <span className="font-bold text-gray-900 w-8 text-right">{c.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Device & Browser Distribution */}
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                  <h4 className="font-extrabold text-base text-gray-900 mb-4 flex items-center gap-2">
+                    <Monitor size={16} className="text-indigo-600" /> Device & Browser Breakdown
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Device Types</p>
+                      <div className="space-y-2">
+                        {visitorStats.deviceWise?.map((d, i) => (
+                          <div key={i} className="flex justify-between items-center bg-gray-50 px-3 py-1.5 rounded-lg text-xs">
+                            <span className="font-medium text-gray-700">{d.device}</span>
+                            <span className="font-bold text-indigo-600">{d.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Browsers</p>
+                      <div className="space-y-2">
+                        {visitorStats.browserWise?.map((b, i) => (
+                          <div key={i} className="flex justify-between items-center bg-gray-50 px-3 py-1.5 rounded-lg text-xs">
+                            <span className="font-medium text-gray-700">{b.browser}</span>
+                            <span className="font-bold text-indigo-600">{b.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Detailed Visitor Locations Table */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-5 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-50/50">
+                  <div>
+                    <h4 className="font-extrabold text-base text-gray-900">Recent Visitor Location Records</h4>
+                    <p className="text-xs text-gray-500">Live feed of visitor geolocations, IP, device, and landing paths.</p>
+                  </div>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-2.5 text-gray-400" size={15} />
+                    <input 
+                      type="text" 
+                      placeholder="Filter by IP, City, Country..."
+                      value={visitorFilter}
+                      onChange={(e) => setVisitorFilter(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-bold text-[10px] tracking-wider border-b">
+                      <tr>
+                        <th className="px-5 py-3">IP & Source</th>
+                        <th className="px-5 py-3">Exact Address / Street</th>
+                        <th className="px-5 py-3">City & Region</th>
+                        <th className="px-5 py-3">Coordinates & PIN</th>
+                        <th className="px-5 py-3">Device / Browser</th>
+                        <th className="px-5 py-3">Page Visited</th>
+                        <th className="px-5 py-3">Hits</th>
+                        <th className="px-5 py-3 text-right">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {visitorStats.recentVisitors
+                        ?.filter(v => {
+                          if (!visitorFilter) return true;
+                          const q = visitorFilter.toLowerCase();
+                          return (
+                            v.ip?.toLowerCase().includes(q) ||
+                            v.exactAddress?.toLowerCase().includes(q) ||
+                            v.street?.toLowerCase().includes(q) ||
+                            v.neighbourhood?.toLowerCase().includes(q) ||
+                            v.city?.toLowerCase().includes(q) ||
+                            v.country?.toLowerCase().includes(q) ||
+                            v.region?.toLowerCase().includes(q) ||
+                            v.device?.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((v) => (
+                          <tr key={v._id} className="hover:bg-indigo-50/30 transition-colors">
+                            <td className="px-5 py-3 font-mono font-bold text-gray-800">
+                              <div>{v.ip}</div>
+                              <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded uppercase mt-1 ${v.locationSource?.includes('GPS') ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                {v.locationSource || 'IP Geolocation'}
+                              </span>
+                              {v.user && (
+                                <span className="block text-[10px] text-indigo-600 font-sans font-medium mt-0.5">
+                                  User: {v.user.name || v.user.email}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3 max-w-[280px]">
+                              {v.exactAddress ? (
+                                <div>
+                                  <p className="font-bold text-gray-900 line-clamp-2" title={v.exactAddress}>
+                                    {v.exactAddress}
+                                  </p>
+                                  {(v.street || v.neighbourhood) && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {v.street && (
+                                        <span className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-medium">
+                                          🛣️ {v.street}
+                                        </span>
+                                      )}
+                                      {v.neighbourhood && (
+                                        <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                          📍 {v.neighbourhood}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">
+                                  {v.city}, {v.region}, {v.country}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-1.5 font-semibold text-gray-900">
+                                <span>{v.city || 'Unknown'}</span>
+                                {v.region && v.region !== 'Unknown' && <span className="text-gray-400">, {v.region}</span>}
+                              </div>
+                              <span className="text-[11px] text-gray-500 font-medium">
+                                {v.country} ({v.countryCode})
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-gray-500 font-mono text-[11px]">
+                              <div>{v.latitude && v.longitude ? `${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)}` : 'N/A'}</div>
+                              {(v.postcode || v.postalCode) && (
+                                <span className="inline-block mt-1 text-[10px] font-sans font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                                  PIN: {v.postcode || v.postalCode}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 font-semibold rounded text-[10px] mr-1.5">
+                                {v.device}
+                              </span>
+                              <span className="text-gray-600 text-[11px]">
+                                {v.browser} / {v.os}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 font-mono text-indigo-600 font-medium">
+                              {v.page || '/'}
+                            </td>
+                            <td className="px-5 py-3 font-bold text-gray-800">
+                              {v.visitCount || 1}
+                            </td>
+                            <td className="px-5 py-3 text-right text-gray-500 whitespace-nowrap">
+                              {new Date(v.lastVisitAt || v.createdAt).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
