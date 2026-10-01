@@ -5,9 +5,8 @@ const baseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL.replace
 
 const api = axios.create({
   baseURL,
-  // Avoid leaving the assistant in a permanent loading state when the API is
-  // unreachable or a provider fails to respond.
-  timeout: 20000,
+  // 45s timeout to comfortably accommodate cold starts on Render/cloud services
+  timeout: 45000,
 });
 
 // Add a request interceptor to attach JWT token

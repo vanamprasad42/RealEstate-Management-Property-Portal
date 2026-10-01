@@ -899,13 +899,31 @@ const AdminDashboard = () => {
                 <AlertCircle size={24} />
               </div>
               <h4 className="text-base font-bold text-gray-900 mb-1">Failed to Load Visitor Telemetry</h4>
-              <p className="text-sm text-gray-500 mb-4">{visitorError}</p>
-              <button 
-                onClick={fetchVisitorStats}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition shadow-xs"
-              >
-                <RefreshCw size={14} /> Retry Telemetry
-              </button>
+              <p className="text-sm text-gray-500 mb-2">{visitorError}</p>
+              {typeof visitorError === 'string' && (visitorError.toLowerCase().includes('token') || visitorError.toLowerCase().includes('not authorized') || visitorError.toLowerCase().includes('401')) ? (
+                <p className="text-xs text-amber-600 mb-4 font-medium">Your admin session may have expired. Please log out and log back in to renew your security token.</p>
+              ) : (
+                <p className="text-xs text-gray-400 mb-4">If the cloud service was sleeping, it may take a few seconds to wake up.</p>
+              )}
+              <div className="flex justify-center items-center gap-3">
+                <button 
+                  onClick={fetchVisitorStats}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition shadow-xs"
+                >
+                  <RefreshCw size={14} /> Retry Telemetry
+                </button>
+                {typeof visitorError === 'string' && (visitorError.toLowerCase().includes('token') || visitorError.toLowerCase().includes('not authorized') || visitorError.toLowerCase().includes('401')) && (
+                  <button 
+                    onClick={() => {
+                      localStorage.removeItem('userInfo');
+                      window.location.href = '/login';
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-semibold hover:bg-gray-900 transition shadow-xs"
+                  >
+                    Log In Again
+                  </button>
+                )}
+              </div>
             </div>
           ) : (!visitorStats || (visitorStats.totalVisits === 0 && (!visitorStats.recentVisitors || visitorStats.recentVisitors.length === 0))) ? (
             <div className="p-12 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
