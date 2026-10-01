@@ -52,8 +52,8 @@ const reverseGeocode = async (lat, lon) => {
   if (!lat || !lon) return null;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'RealEstatePortal/1.0' },
       signal: controller.signal
@@ -62,15 +62,23 @@ const reverseGeocode = async (lat, lon) => {
     if (res.ok) {
       const data = await res.json();
       const addr = data.address || {};
+      const city = addr.city || addr.town || addr.municipality || addr.city_district || addr.county || addr.suburb || addr.village || addr.hamlet || addr.state_district || '';
+      const region = addr.state || addr.province || addr.state_district || '';
+      const street = addr.road || addr.street || addr.pedestrian || addr.footway || addr.path || addr.highway || '';
+      const neighbourhood = addr.neighbourhood || addr.suburb || addr.residential || addr.subdivision || addr.hamlet || addr.quarter || '';
+      const postcode = addr.postcode || addr.postal_code || '';
+      const country = addr.country || '';
+      const countryCode = (addr.country_code || '').toUpperCase();
+
       return {
         exactAddress: data.display_name || '',
-        street: addr.road || addr.street || addr.pedestrian || '',
-        neighbourhood: addr.neighbourhood || addr.suburb || addr.residential || addr.subdivision || '',
-        city: addr.city || addr.town || addr.village || addr.city_district || '',
-        region: addr.state || addr.province || '',
-        postcode: addr.postcode || '',
-        country: addr.country || '',
-        countryCode: (addr.country_code || '').toUpperCase()
+        street,
+        neighbourhood,
+        city,
+        region,
+        postcode,
+        country,
+        countryCode
       };
     }
   } catch (err) {
@@ -140,58 +148,89 @@ export const trackVisitor = async (req, res) => {
     let clientLat = req.body?.latitude ? Number(req.body.latitude) : null;
     let clientLon = req.body?.longitude ? Number(req.body.longitude) : null;
     let clientAccuracy = req.body?.accuracy ? Number(req.body.accuracy) : null;
-    let locationSource = req.body?.locationSource || (clientLat ? 'GPS (High Accuracy)' : 'IP Geolocation');
+    const hasClientCoords = clientLat !== null && clientLon !== null && !isNaN(clientLat) && !isNaN(clientLon);
+    let isGps = hasClientCoords || Boolean(req.body?.locationSource?.includes('GPS'));
+    let locationSource = req.body?.locationSource || (hasClientCoords ? 'GPS (High Accuracy)' : 'IP Geolocation');
 
     let exactAddress = req.body?.exactAddress || '';
     let street = req.body?.street || '';
     let neighbourhood = req.body?.neighbourhood || '';
     let postcode = req.body?.postcode || req.body?.postalCode || '';
+    let city = req.body?.city || clientCity || '';
+    let region = req.body?.region || '';
+    let country = req.body?.country || '';
+    let countryCode = req.body?.countryCode || '';
+    let latitude = hasClientCoords ? clientLat : null;
+    let longitude = hasClientCoords ? clientLon : null;
+    let timezone = clientTimezone || 'Asia/Kolkata';
 
-    let geo = null;
     let effectiveIp = rawIp;
 
-    if (!isPrivateIp(rawIp)) {
-      geo = geoip.lookup(rawIp);
-    } else {
-      // For local development, try fast WAN IP detection with timeout or provide fallback
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1200);
-        const ipRes = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (ipRes.ok) {
-          const ipData = await ipRes.json();
-          if (ipData?.ip) {
-            effectiveIp = ipData.ip;
-            geo = geoip.lookup(effectiveIp);
-          }
+    if (hasClientCoords) {
+      // Prioritize GPS coordinates: reverse-geocode exact location
+      if (!exactAddress || !city || !region) {
+        const geoResolved = await reverseGeocode(clientLat, clientLon);
+        if (geoResolved) {
+          if (!exactAddress) exactAddress = geoResolved.exactAddress;
+          if (!street) street = geoResolved.street;
+          if (!neighbourhood) neighbourhood = geoResolved.neighbourhood;
+          if (!postcode) postcode = geoResolved.postcode;
+          if (geoResolved.city) city = geoResolved.city;
+          if (geoResolved.region) region = geoResolved.region;
+          if (geoResolved.country) country = geoResolved.country;
+          if (geoResolved.countryCode) countryCode = geoResolved.countryCode;
+          locationSource = 'GPS (Exact)';
+          isGps = true;
         }
-      } catch (err) {
-        // Fallback for offline / private network
       }
-    }
+      if (!countryCode) countryCode = 'IN';
+      if (!country) country = getCountryName(countryCode);
+    } else {
+      // No client GPS coords: fall back to IP Geolocation
+      let geo = null;
+      if (!isPrivateIp(rawIp)) {
+        geo = geoip.lookup(rawIp);
+      } else {
+        // For local development, try fast WAN IP detection with timeout or provide fallback
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 1200);
+          const ipRes = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            if (ipData?.ip) {
+              effectiveIp = ipData.ip;
+              geo = geoip.lookup(effectiveIp);
+            }
+          }
+        } catch (err) {
+          // Fallback for offline / private network
+        }
+      }
 
-    let countryCode = req.body?.countryCode || geo?.country || (isPrivateIp(rawIp) ? 'IN' : 'UN');
-    let country = req.body?.country || getCountryName(countryCode);
-    let region = req.body?.region || geo?.region || (isPrivateIp(rawIp) ? 'Telangana' : 'Unknown');
-    let city = req.body?.city || geo?.city || clientCity || (isPrivateIp(rawIp) ? 'Hyderabad (Local)' : 'Unknown');
-    let latitude = clientLat || ((geo?.ll && geo.ll[0]) ? geo.ll[0] : (isPrivateIp(rawIp) ? 17.3850 : null));
-    let longitude = clientLon || ((geo?.ll && geo.ll[1]) ? geo.ll[1] : (isPrivateIp(rawIp) ? 78.4867 : null));
-    let timezone = geo?.timezone || clientTimezone || 'Asia/Kolkata';
+      countryCode = countryCode || geo?.country || (isPrivateIp(rawIp) ? 'IN' : 'UN');
+      country = country || getCountryName(countryCode);
+      region = region || geo?.region || (isPrivateIp(rawIp) ? 'Telangana' : 'Unknown');
+      city = city || geo?.city || (isPrivateIp(rawIp) ? 'Hyderabad (Local)' : 'Unknown');
+      latitude = (geo?.ll && geo.ll[0]) ? geo.ll[0] : (isPrivateIp(rawIp) ? 17.3850 : null);
+      longitude = (geo?.ll && geo.ll[1]) ? geo.ll[1] : (isPrivateIp(rawIp) ? 78.4867 : null);
+      if (geo?.timezone) timezone = geo.timezone;
 
-    // If exact address not provided by client but we have coordinates, reverse geocode now!
-    if (!exactAddress && latitude && longitude) {
-      const geoResolved = await reverseGeocode(latitude, longitude);
-      if (geoResolved) {
-        exactAddress = geoResolved.exactAddress;
-        if (!street) street = geoResolved.street;
-        if (!neighbourhood) neighbourhood = geoResolved.neighbourhood;
-        if (!postcode) postcode = geoResolved.postcode;
-        if (geoResolved.city) city = geoResolved.city;
-        if (geoResolved.region) region = geoResolved.region;
-        if (geoResolved.country) country = geoResolved.country;
-        if (geoResolved.countryCode) countryCode = geoResolved.countryCode;
-        if (locationSource === 'IP Geolocation') locationSource = 'Reverse Geocoded (IP Coordinates)';
+      // Reverse geocode IP coordinates if exactAddress not already provided
+      if (!exactAddress && latitude && longitude) {
+        const geoResolved = await reverseGeocode(latitude, longitude);
+        if (geoResolved) {
+          exactAddress = geoResolved.exactAddress;
+          if (!street) street = geoResolved.street;
+          if (!neighbourhood) neighbourhood = geoResolved.neighbourhood;
+          if (!postcode) postcode = geoResolved.postcode;
+          if (geoResolved.city) city = geoResolved.city;
+          if (geoResolved.region) region = geoResolved.region;
+          if (geoResolved.country) country = geoResolved.country;
+          if (geoResolved.countryCode) countryCode = geoResolved.countryCode;
+          if (locationSource === 'IP Geolocation') locationSource = 'Reverse Geocoded (IP Coordinates)';
+        }
       }
     }
 
@@ -214,26 +253,46 @@ export const trackVisitor = async (req, res) => {
       recentVisit.visitCount += 1;
       recentVisit.lastVisitAt = new Date();
       recentVisit.page = page;
-      if (exactAddress) recentVisit.exactAddress = exactAddress;
-      if (street) recentVisit.street = street;
-      if (neighbourhood) recentVisit.neighbourhood = neighbourhood;
-      if (postcode) {
-        recentVisit.postcode = postcode;
-        recentVisit.postalCode = postcode;
+
+      const isIncomingGps = isGps;
+      const isExistingIpOnly = !recentVisit.locationSource?.includes('GPS');
+
+      // If incoming data has GPS, or if the stored visit only had rough IP data, upgrade location details
+      if (isIncomingGps || isExistingIpOnly) {
+        if (city && city !== 'Unknown') recentVisit.city = city;
+        if (region && region !== 'Unknown') recentVisit.region = region;
+        if (country && country !== 'Unknown') recentVisit.country = country;
+        if (countryCode && countryCode !== 'UN') recentVisit.countryCode = countryCode;
+        if (exactAddress) recentVisit.exactAddress = exactAddress;
+
+        // When upgrading to GPS, replace street & neighbourhood with accurate GPS values
+        if (isIncomingGps) {
+          recentVisit.street = street;
+          recentVisit.neighbourhood = neighbourhood;
+        } else {
+          if (street) recentVisit.street = street;
+          if (neighbourhood) recentVisit.neighbourhood = neighbourhood;
+        }
+
+        if (postcode) {
+          recentVisit.postcode = postcode;
+          recentVisit.postalCode = postcode;
+        }
+        if (latitude) recentVisit.latitude = latitude;
+        if (longitude) recentVisit.longitude = longitude;
+        if (locationSource) recentVisit.locationSource = locationSource;
+        if (clientAccuracy) recentVisit.accuracy = clientAccuracy;
       }
-      if (latitude) recentVisit.latitude = latitude;
-      if (longitude) recentVisit.longitude = longitude;
-      if (locationSource) recentVisit.locationSource = locationSource;
-      if (clientAccuracy) recentVisit.accuracy = clientAccuracy;
+
       if (userId && !recentVisit.user) recentVisit.user = userId;
       record = await recentVisit.save();
     } else {
       record = await VisitorLocation.create({
         ip: effectiveIp,
-        city,
-        region,
-        country,
-        countryCode,
+        city: city || 'Unknown',
+        region: region || 'Unknown',
+        country: country || 'Unknown',
+        countryCode: countryCode || 'UN',
         latitude,
         longitude,
         exactAddress,

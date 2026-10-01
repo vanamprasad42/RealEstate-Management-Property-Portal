@@ -22,7 +22,15 @@ const VisitorTracker = () => {
         let cachedGeo = null;
         try {
           const stored = sessionStorage.getItem('re_visitor_exact_geo');
-          if (stored) cachedGeo = JSON.parse(stored);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            // Invalidate if stale or city doesn't match address
+            if (parsed?.exactAddress && parsed?.city && parsed.exactAddress.toLowerCase().includes('telangana') && parsed.city.toLowerCase().includes('chennai')) {
+              sessionStorage.removeItem('re_visitor_exact_geo');
+            } else if (parsed?.latitude && parsed?.longitude) {
+              cachedGeo = parsed;
+            }
+          }
         } catch (e) {}
 
         const payload = {
@@ -42,25 +50,34 @@ const VisitorTracker = () => {
             async (pos) => {
               const { latitude, longitude, accuracy } = pos.coords;
               try {
-                // Reverse geocode via OpenStreetMap Nominatim
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, {
+                // Reverse geocode via OpenStreetMap Nominatim with English preference
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`, {
                   headers: { 'Accept': 'application/json' }
                 });
                 if (res.ok) {
                   const data = await res.json();
                   const addr = data.address || {};
+                  const resolvedCity = addr.city || addr.town || addr.municipality || addr.city_district || addr.county || addr.suburb || addr.village || addr.hamlet || addr.state_district || '';
+                  const resolvedRegion = addr.state || addr.province || addr.state_district || '';
+                  const resolvedNeighbourhood = addr.neighbourhood || addr.suburb || addr.residential || addr.subdivision || addr.hamlet || '';
+                  const resolvedStreet = addr.road || addr.street || addr.pedestrian || addr.footway || '';
+                  const resolvedPostcode = addr.postcode || addr.postal_code || '';
+                  const resolvedCountry = addr.country || '';
+                  const resolvedCountryCode = (addr.country_code || '').toUpperCase();
+
                   const exactGeo = {
                     latitude,
                     longitude,
                     accuracy,
                     exactAddress: data.display_name || '',
-                    street: addr.road || addr.street || addr.pedestrian || '',
-                    neighbourhood: addr.neighbourhood || addr.suburb || addr.residential || '',
-                    city: addr.city || addr.town || addr.village || '',
-                    region: addr.state || addr.province || '',
-                    postcode: addr.postcode || '',
-                    country: addr.country || '',
-                    countryCode: (addr.country_code || '').toUpperCase(),
+                    street: resolvedStreet,
+                    neighbourhood: resolvedNeighbourhood,
+                    city: resolvedCity,
+                    region: resolvedRegion,
+                    postcode: resolvedPostcode,
+                    postalCode: resolvedPostcode,
+                    country: resolvedCountry,
+                    countryCode: resolvedCountryCode,
                     locationSource: 'GPS (Exact)'
                   };
 
@@ -75,11 +92,14 @@ const VisitorTracker = () => {
                     userId: userInfo?._id || null,
                     ...exactGeo
                   });
+                } else {
+                  throw new Error('Nominatim status ' + res.status);
                 }
               } catch (e) {
-                // If client reverse-geocode blocked by browser, send raw coordinates to backend
+                // If client reverse-geocode blocked by browser, send raw coordinates to backend for server-side resolution
                 await api.post('/visitors/track', {
                   page: location.pathname,
+                  timezone,
                   latitude,
                   longitude,
                   accuracy,
@@ -90,7 +110,7 @@ const VisitorTracker = () => {
             () => {
               // Permission dismissed or denied - backend automatically uses IP coordinates reverse geocoding
             },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
           );
         }
       } catch (err) {
