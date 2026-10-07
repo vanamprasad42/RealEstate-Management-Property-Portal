@@ -18,6 +18,7 @@ import AddProperty from './pages/AddProperty';
 import AiAssistant from './pages/AiAssistant';
 import AiChatWidget from './components/AiChatWidget';
 import VisitorTracker from './components/VisitorTracker';
+import AuthSessionGuard from './components/AuthSessionGuard';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 function App() {
@@ -25,33 +26,33 @@ function App() {
     <Router>
       <VisitorTracker />
       <ToastContainer position="top-right" autoClose={3000} />
-      <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Home />} />
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route path="properties" element={<Properties />} />
-          <Route path="cities" element={<Cities />} />
-          <Route path="ai-assistant" element={<AiAssistant />} />
-          <Route path="property/:slug" element={<PropertyDetails />} />
-          <Route path="city/:slug" element={<CityProperties />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="reset-password" element={<ResetPassword />} />
-          <Route path="reset-password/:token" element={<ResetPassword />} />
+      <AuthSessionGuard>
+        <Routes>
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<Home />} />
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="properties" element={<Properties />} />
+            <Route path="cities" element={<Cities />} />
+            <Route path="ai-assistant" element={<AiAssistant />} />
+            <Route path="property/:slug" element={<PropertyDetails />} />
+            <Route path="city/:slug" element={<CityProperties />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
+            <Route path="reset-password/:token" element={<ResetPassword />} />
 
-          
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute roles={['user', 'vendor', 'admin']} />}>
-            <Route path="add-property" element={<AddProperty />} />
-            <Route path="vendor/dashboard" element={<VendorDashboard />} />
+            <Route element={<ProtectedRoute roles={['user', 'vendor', 'admin']} />}>
+              <Route path="add-property" element={<AddProperty />} />
+              <Route path="vendor/dashboard" element={<VendorDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute roles={['admin']} />}>
+              <Route path="admin/dashboard" element={<AdminDashboard />} />
+            </Route>
           </Route>
-          
-          <Route element={<ProtectedRoute roles={['admin']} />}>
-            <Route path="admin/dashboard" element={<AdminDashboard />} />
-          </Route>
-        </Route>
-      </Routes>
-      <AiChatWidget />
+        </Routes>
+        <AiChatWidget />
+      </AuthSessionGuard>
     </Router>
   );
 }

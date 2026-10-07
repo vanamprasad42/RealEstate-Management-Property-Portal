@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { logout } from '../redux/slices/authSlice';
 import { 
   setAdminRequest, 
   setAdminUsersSuccess, 
@@ -915,8 +916,8 @@ const AdminDashboard = () => {
                 {typeof visitorError === 'string' && (visitorError.toLowerCase().includes('token') || visitorError.toLowerCase().includes('not authorized') || visitorError.toLowerCase().includes('401')) && (
                   <button 
                     onClick={() => {
-                      localStorage.removeItem('userInfo');
-                      window.location.href = '/login';
+                      dispatch(logout());
+                      navigate('/login', { replace: true });
                     }}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-semibold hover:bg-gray-900 transition shadow-xs"
                   >
