@@ -1130,7 +1130,10 @@ const AdminDashboard = () => {
                               </span>
                             </td>
                             <td className="px-5 py-3 text-gray-500 font-mono text-[11px]">
-                              <div>{v.latitude && v.longitude ? `${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)}` : 'N/A'}</div>
+                              <div>{Number.isFinite(v.latitude) && Number.isFinite(v.longitude) ? `${v.latitude.toFixed(6)}, ${v.longitude.toFixed(6)}` : 'N/A'}</div>
+                              {Number.isFinite(v.accuracy) && (
+                                <div className="mt-1 text-[10px] font-sans">GPS accuracy: ±{Math.round(v.accuracy)} m</div>
+                              )}
                               {(v.postcode || v.postalCode) && (
                                 <span className="inline-block mt-1 text-[10px] font-sans font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
                                   PIN: {v.postcode || v.postalCode}

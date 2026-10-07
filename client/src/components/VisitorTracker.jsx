@@ -41,8 +41,6 @@ const VisitorTracker = () => {
           ...(cachedGeo || {})
         };
 
-        await api.post('/visitors/track', payload);
-
         // Attempt device GPS check if not already performed this session
         if (!gpsChecked.current && typeof navigator !== 'undefined' && navigator.geolocation) {
           gpsChecked.current = true;
@@ -108,13 +106,15 @@ const VisitorTracker = () => {
               }
             },
             () => {
-              // Permission dismissed or denied - backend automatically uses IP coordinates reverse geocoding
+              // Permission dismissed or denied - backend uses IP geolocation instead.
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
           );
         }
+
+        await api.post('/visitors/track', payload);
       } catch (err) {
-        // Silently catch so user browsing is never interrupted
+        console.error('Failed to track visitor location', err);
       }
     };
 

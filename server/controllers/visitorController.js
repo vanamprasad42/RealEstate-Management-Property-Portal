@@ -145,10 +145,25 @@ export const trackVisitor = async (req, res) => {
     const clientCity = req.body?.clientCity || '';
 
     // GPS/Exact location data passed from client if available
-    let clientLat = req.body?.latitude ? Number(req.body.latitude) : null;
-    let clientLon = req.body?.longitude ? Number(req.body.longitude) : null;
-    let clientAccuracy = req.body?.accuracy ? Number(req.body.accuracy) : null;
-    const hasClientCoords = clientLat !== null && clientLon !== null && !isNaN(clientLat) && !isNaN(clientLon);
+    const hasLatitude = req.body?.latitude !== undefined && req.body?.latitude !== null && req.body?.latitude !== '';
+    const hasLongitude = req.body?.longitude !== undefined && req.body?.longitude !== null && req.body?.longitude !== '';
+    let clientLat = hasLatitude ? Number(req.body.latitude) : null;
+    let clientLon = hasLongitude ? Number(req.body.longitude) : null;
+    let clientAccuracy = req.body?.accuracy !== undefined && req.body?.accuracy !== null && req.body?.accuracy !== ''
+      ? Number(req.body.accuracy)
+      : null;
+    const hasClientCoords =
+      Number.isFinite(clientLat) &&
+      Number.isFinite(clientLon) &&
+      clientLat >= -90 &&
+      clientLat <= 90 &&
+      clientLon >= -180 &&
+      clientLon <= 180;
+    if (!Number.isFinite(clientAccuracy) || clientAccuracy < 0) clientAccuracy = null;
+    if (!hasClientCoords) {
+      clientLat = null;
+      clientLon = null;
+    }
     let isGps = hasClientCoords || Boolean(req.body?.locationSource?.includes('GPS'));
     let locationSource = req.body?.locationSource || (hasClientCoords ? 'GPS (High Accuracy)' : 'IP Geolocation');
 
@@ -278,10 +293,10 @@ export const trackVisitor = async (req, res) => {
           recentVisit.postcode = postcode;
           recentVisit.postalCode = postcode;
         }
-        if (latitude) recentVisit.latitude = latitude;
-        if (longitude) recentVisit.longitude = longitude;
+        if (latitude !== null) recentVisit.latitude = latitude;
+        if (longitude !== null) recentVisit.longitude = longitude;
         if (locationSource) recentVisit.locationSource = locationSource;
-        if (clientAccuracy) recentVisit.accuracy = clientAccuracy;
+        if (clientAccuracy !== null) recentVisit.accuracy = clientAccuracy;
       }
 
       if (userId && !recentVisit.user) recentVisit.user = userId;
