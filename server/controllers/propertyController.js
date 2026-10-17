@@ -12,6 +12,25 @@ export const invalidatePropertiesCache = () => {
   featuredPropertiesCacheTime = 0;
 };
 
+const normalizePropertyInput = (input) => {
+  const normalizedInput = { ...input };
+
+  if (typeof normalizedInput.cornerPlot === 'string') {
+    const value = normalizedInput.cornerPlot.trim().toLowerCase();
+    if (['yes', 'true', '1'].includes(value)) {
+      normalizedInput.cornerPlot = true;
+    } else if (['no', 'false', '0'].includes(value)) {
+      normalizedInput.cornerPlot = false;
+    } else {
+      const error = new Error('cornerPlot must be a boolean, Yes, or No.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  return normalizedInput;
+};
+
 // @desc    Fetch all properties
 // @route   GET /api/properties
 // @access  Public
@@ -29,7 +48,7 @@ export const getProperties = async (req, res) => {
       !req.query.propertyType &&
       !req.query.listingType &&
       !req.query.vendorId &&
-      req.query.approved !== 'false' &&
+      (!req.query.approved || req.query.approved === 'true') &&
       !req.query.minPrice &&
       !req.query.maxPrice;
 
@@ -43,15 +62,24 @@ export const getProperties = async (req, res) => {
     const query = {};
 
     if (req.query.vendorId) {
+      const isOwner = req.user?._id.toString() === req.query.vendorId;
+      if (!req.user || (!isOwner && req.user.role !== 'admin')) {
+        return res.status(403).json({ message: 'Not authorized to view these property listings' });
+      }
       query.vendor = req.query.vendorId;
     }
 
     if (req.query.approved === 'false') {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can view pending property listings' });
+      }
       query.approved = false;
     } else if (req.query.approved === 'true') {
       query.approved = true;
     } else if (req.query.approved === 'all') {
-      // Return both approved and unapproved
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can view all property listings' });
+      }
     } else if (!req.query.vendorId) {
       // Default public behavior
       query.approved = true;
@@ -159,7 +187,7 @@ export const createProperty = async (req, res) => {
   try {
     const isAdmin = req.user && req.user.role === 'admin';
     const property = new Property({
-      ...req.body,
+      ...normalizePropertyInput(req.body),
       vendor: req.user._id,
       approved: isAdmin ? (req.body.approved ?? true) : false // Requires admin approval before publishing
     });
@@ -168,7 +196,7 @@ export const createProperty = async (req, res) => {
     invalidatePropertiesCache();
     res.status(201).json(createdProperty);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -185,7 +213,7 @@ export const updateProperty = async (req, res) => {
         return res.status(401).json({ message: 'Not authorized to update this property' });
       }
 
-      Object.assign(property, req.body);
+      Object.assign(property, normalizePropertyInput(req.body));
       
       // If user or vendor updates, reset approval so admin re-verifies before publishing
       if (req.user.role !== 'admin') {
@@ -199,7 +227,7 @@ export const updateProperty = async (req, res) => {
       res.status(404).json({ message: 'Property not found' });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 

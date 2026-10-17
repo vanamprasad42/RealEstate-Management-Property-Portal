@@ -6,12 +6,12 @@ import {
   updateProperty, 
   deleteProperty 
 } from '../controllers/propertyController.js';
-import { protect, authorizeRoles } from '../middleware/authMiddleware.js';
+import { protect, optionalProtect, authorizeRoles } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(getProperties)
+  .get(optionalProtect, getProperties)
   .post(protect, authorizeRoles('user', 'vendor', 'admin'), createProperty);
 
 router.route('/:id')

@@ -273,6 +273,13 @@ const AdminDashboard = () => {
       } else {
         postData.bedrooms = editPropForm.bedrooms ? Number(editPropForm.bedrooms) : undefined;
         postData.bathrooms = editPropForm.bathrooms ? Number(editPropForm.bathrooms) : undefined;
+        postData.areaUnit = undefined;
+        postData.plotLength = undefined;
+        postData.plotWidth = undefined;
+        postData.facing = undefined;
+        postData.cornerPlot = undefined;
+        postData.roadWidth = undefined;
+        postData.plotType = undefined;
       }
 
       await api.put(`/properties/${editPropId}`, postData);
