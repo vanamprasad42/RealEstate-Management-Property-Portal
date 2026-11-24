@@ -225,6 +225,22 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
   return filters;
 };
 
+export const isPropertyRelatedQuery = (text = '') => {
+  const query = String(text).toLowerCase();
+  const propertyKeywords = [
+    'property', 'properties', 'house', 'home', 'flat', 'apartment', 'villa',
+    'plot', 'land', 'bhk', 'bedroom', 'rent', 'lease', 'buy', 'sale',
+    'price', 'budget', 'location', 'city', 'area', 'sq ft', 'square',
+    'emi', 'loan', 'interest', 'down payment', 'finance', 'mortgage',
+    'invest', 'investment', 'roi', 'rental yield', 'appreciation',
+    'rera', 'document', 'stamp duty', 'registration', 'legal', 'khata',
+    'agent', 'builder', 'gated', 'facing', 'amenities', 'locality',
+    'compare', 'details', 'under', 'below', 'crore', 'lakh', 'lakhs'
+  ];
+
+  return propertyKeywords.some(keyword => query.includes(keyword));
+};
+
 // Query MongoDB for matching real-world property records
 export const fetchMatchingProperties = async (filters = {}) => {
   try {
@@ -707,6 +723,21 @@ export const processAiChat = async ({ message, conversationHistory = [], userPre
     if (recentQueriesStore.length > 10) recentQueriesStore.pop();
   }
 
+  if (!isPropertyRelatedQuery(trimmed)) {
+    return {
+      reply: 'I can help only with real estate queries, such as property searches, prices, locations, comparisons, home loans, investment areas, RERA, and registration.',
+      properties: [],
+      followUps: [
+        'Find 3 BHK properties in Hyderabad under ₹80 lakhs',
+        'What are the best areas to invest in Hyderabad?',
+        'Tell me about home loan options'
+      ],
+      filters: {},
+      provider: 'HomeNest AI Assistant',
+      timestamp: timeNow
+    };
+  }
+
   // 1. Extract search criteria from natural language prompt
   const filters = extractSearchFilters(message, userPreferences || {});
 
@@ -722,7 +753,7 @@ export const processAiChat = async ({ message, conversationHistory = [], userPre
     address: p.address,
     bedrooms: p.bedrooms,
     bathrooms: p.bathrooms,
-    area: `${p.area} sq ft`,
+    area: `${p.area} ${p.areaUnit || 'sq ft'}`,
     propertyType: p.propertyType,
     listingType: p.listingType,
     facing: p.facing || 'East',
@@ -732,6 +763,13 @@ export const processAiChat = async ({ message, conversationHistory = [], userPre
 
   const systemPrompt = `You are "HomeNest AI Property Assistant", an elite real estate advisor and investment consultant.
 Help users discover homes, compare properties, explain localities, analyze investment opportunities, and answer home loan queries with authentic figures.
+
+STRICT SCOPE:
+- Answer only real estate, property, home loan, investment, locality, legal, RERA, registration, and property-registration questions.
+- If the request is unrelated to real estate, briefly state that you can help only with property-related questions and suggest one real-estate question.
+- Never answer general knowledge, coding, politics, entertainment, health, or other unrelated topics.
+- Do not invent property details. Use only the database properties supplied below.
+- For missing property facts, say the information is not available rather than guessing.
 
 REAL-TIME DATABASE PROPERTIES MATCHING USER QUERY:
 ${JSON.stringify(propertyContext, null, 2)}

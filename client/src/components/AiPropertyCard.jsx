@@ -87,11 +87,11 @@ const AiPropertyCard = ({
             </div>
             <div className="flex items-center gap-1 font-medium">
               <Maximize2 size={13} className="text-gray-400" />
-              <span>{property.area} sq ft</span>
+              <span>{property.area} {property.areaUnit || 'sq ft'}</span>
             </div>
             <div className="flex items-center gap-1 font-medium">
               <Building size={13} className="text-gray-400" />
-              <span>{property.facing || 'East Facing'}</span>
+              <span>{property.facing ? `${property.facing} Facing` : 'Facing details'}</span>
             </div>
           </div>
         </div>
