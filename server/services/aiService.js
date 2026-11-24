@@ -706,14 +706,15 @@ const callExternalLlm = async (chatMessages, systemPrompt) => {
   // 4. Check APInex API (only if key exists and not explicitly failed previously)
   const apinexApiKey = process.env.APINEX_API_KEY;
   const apinexBaseUrl = process.env.APINEX_BASE_URL || 'https://api.apinex.bond/v1';
-  const apinexModel = process.env.APINEX_MODEL || 'deepseek-v4-flash';
+  const apinexModel = process.env.APINEX_MODEL || 'free/gpt-6-luna';
 
   if (apinexApiKey && apinexApiKey.trim()) {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 3500); // 3.5s fast timeout
 
-      const res = await fetch(`${apinexBaseUrl}/chat/completions`, {
+      const normalizedBaseUrl = apinexBaseUrl.replace(/\/+$/, '');
+      const res = await fetch(`${normalizedBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
