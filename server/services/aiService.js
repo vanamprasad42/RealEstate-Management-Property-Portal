@@ -54,6 +54,7 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
   // 1. Detect City
   const cityMap = {
     'hyderabad': 'Hyderabad',
+    'hyd': 'Hyderabad',
     'mumbai': 'Mumbai',
     'pune': 'Pune',
     'bangalore': 'Bangalore',
@@ -69,7 +70,7 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
   };
 
   for (const [key, val] of Object.entries(cityMap)) {
-    if (query.includes(key)) {
+    if (query === key || query.includes(` ${key} `) || query.startsWith(`${key} `) || query.endsWith(` ${key}`)) {
       filters.city = val;
       break;
     }
@@ -198,8 +199,38 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
   ];
 
   const matchedNames = [];
+  const normalizeWords = value => String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const levenshteinDistance = (left, right) => {
+    const a = normalizeWords(left);
+    const b = normalizeWords(right);
+    const rows = Array.from({ length: b.length + 1 }, () => []);
+    for (let i = 0; i <= b.length; i++) rows[i][0] = i;
+    for (let j = 0; j <= a.length; j++) rows[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        rows[i][j] = b[i - 1] === a[j - 1]
+          ? rows[i - 1][j - 1]
+          : Math.min(rows[i - 1][j - 1], rows[i][j], rows[i][j - 1]) + 1;
+      }
+    }
+    return rows[b.length][a.length];
+  };
+
   for (const name of knownPropertyNames) {
-    if (query.includes(name)) {
+    const exactOrFuzzyMatch = query.includes(name) || name
+      .split(' ')
+      .filter(word => word.length >= 4)
+      .some(word => {
+        const tokens = normalizeWords(query).split(' ');
+        return tokens.some(token => levenshteinDistance(token, word) <= Math.max(1, Math.floor(word.length * 0.25)));
+      });
+
+    if (exactOrFuzzyMatch) {
       matchedNames.push(name);
     }
   }
@@ -227,6 +258,18 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
 
 export const isPropertyRelatedQuery = (text = '') => {
   const query = String(text).toLowerCase();
+  const realEstateNames = [
+    'prestige heights', 'lake view residency', 'green park',
+    'rr towers', 'sri sai enclave', 'sunrise residency',
+    'nallagandla heights', 'madhapur sky gardens',
+    'kukatpally urban nest', 'jubilee hills garden villa',
+    'kondapur business square', 'tellapur green acres',
+    'royal palms luxury villa'
+  ];
+  if (realEstateNames.some(name => query.includes(name) || query.includes(name.split(' ')[0]))) {
+    return true;
+  }
+
   const propertyKeywords = [
     'property', 'properties', 'house', 'home', 'flat', 'apartment', 'villa',
     'plot', 'land', 'bhk', 'bedroom', 'rent', 'lease', 'buy', 'sale',

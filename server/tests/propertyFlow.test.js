@@ -11,6 +11,10 @@ import {
   invalidatePropertiesCache,
   updateProperty,
 } from '../controllers/propertyController.js';
+import {
+  extractSearchFilters,
+  isPropertyRelatedQuery,
+} from '../services/aiService.js';
 
 const properties = [];
 const vendorId = new mongoose.Types.ObjectId();
@@ -215,4 +219,19 @@ test('expired optional credentials do not block public property browsing', async
 
   assert.equal(continued, true);
   assert.equal(response.statusCode, 200);
+});
+
+test('AI assistant recognizes property queries with spelling mistakes and short city names', () => {
+  const query = 'Green Park Apartmen hyd';
+  assert.equal(isPropertyRelatedQuery(query), true);
+
+  const filters = extractSearchFilters(query);
+  assert.equal(filters.city, 'Hyderabad');
+  assert.equal(filters.targetPropertyName, 'green park apartments');
+});
+
+test('AI assistant rejects unrelated requests before calling an external model', () => {
+  assert.equal(isPropertyRelatedQuery('What is the capital of France?'), false);
+  assert.equal(isPropertyRelatedQuery('Write a Python sorting function'), false);
+  assert.equal(isPropertyRelatedQuery('Tell me a joke'), false);
 });
