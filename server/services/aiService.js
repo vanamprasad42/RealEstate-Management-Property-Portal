@@ -221,14 +221,14 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
     return rows[b.length][a.length];
   };
 
+  const queryTokens = normalizeWords(query).split(' ');
   for (const name of knownPropertyNames) {
-    const exactOrFuzzyMatch = query.includes(name) || name
-      .split(' ')
-      .filter(word => word.length >= 4)
-      .some(word => {
-        const tokens = normalizeWords(query).split(' ');
-        return tokens.some(token => levenshteinDistance(token, word) <= Math.max(1, Math.floor(word.length * 0.25)));
-      });
+    const nameWords = name.split(' ').filter(word => word.length >= 4);
+    const fuzzyMatches = nameWords.filter(word =>
+      queryTokens.some(token => levenshteinDistance(token, word) <= Math.max(1, Math.floor(word.length * 0.25)))
+    );
+    const exactOrFuzzyMatch = query.includes(name) ||
+      (nameWords.length >= 2 && fuzzyMatches.length >= Math.ceil(nameWords.length * 0.6));
 
     if (exactOrFuzzyMatch) {
       matchedNames.push(name);
@@ -254,6 +254,51 @@ export const extractSearchFilters = (text = '', userPreferences = {}) => {
   }
 
   return filters;
+};
+
+const isRelatedPropertyRequest = (text = '') => {
+  const query = String(text).toLowerCase();
+  const hasRelatedIntent = /\b(?:similar|related|another|other|alternative)\b/.test(query);
+  const hasPropertyContext = /\b(?:property|properties|listing|listings|home|homes|house|houses|flat|flats|villa|villas|bhk|bedrooms?)\b/.test(query);
+
+  return (hasRelatedIntent && hasPropertyContext) ||
+    /\bshow\s+more\s+options?\b/.test(query) ||
+    /\bmore\s+(?:properties|listings|homes|houses|flats|villas)\b/.test(query);
+};
+
+export const resolveConversationSearch = ({ message, conversationHistory = [], userPreferences = {} }) => {
+  const history = Array.isArray(conversationHistory) ? conversationHistory : [];
+  const priorPropertyRequest = [...history].reverse().find((item) =>
+    item?.sender === 'user' &&
+    typeof item.text === 'string' &&
+    isPropertyRelatedQuery(item.text)
+  );
+  const usePreviousSearch = isRelatedPropertyRequest(message) && Boolean(priorPropertyRequest);
+  const preferenceFilters = extractSearchFilters('', userPreferences);
+  const previousFilters = usePreviousSearch
+    ? extractSearchFilters(priorPropertyRequest.text)
+    : {};
+  const messageFilters = extractSearchFilters(message);
+
+  const filters = {
+    ...preferenceFilters,
+    ...previousFilters,
+    ...messageFilters
+  };
+
+  if (usePreviousSearch) {
+    filters.relatedOnly = true;
+    filters.excludePropertyIds = history
+      .filter((item) => item?.sender === 'assistant' && Array.isArray(item.properties))
+      .flatMap((item) => item.properties)
+      .map((property) => typeof property === 'string' ? property : property?._id)
+      .filter((id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id));
+  }
+
+  return {
+    filters,
+    isPropertyQuery: isPropertyRelatedQuery(message) || usePreviousSearch
+  };
 };
 
 export const isPropertyRelatedQuery = (text = '') => {
@@ -293,7 +338,10 @@ export const fetchMatchingProperties = async (filters = {}) => {
       return [];
     }
 
+    const excludedIds = (filters.excludePropertyIds || [])
+      .filter((id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id));
     const mongoQuery = { approved: true, status: 'available' };
+    if (excludedIds.length > 0) mongoQuery._id = { $nin: excludedIds };
 
     // If multiple specific property names were mentioned for comparison
     if (filters.targetPropertyNames && filters.targetPropertyNames.length >= 2) {
@@ -302,6 +350,7 @@ export const fetchMatchingProperties = async (filters = {}) => {
       }));
       const comparedProps = await Property.find({
         approved: true,
+        status: 'available',
         $or: orTitles
       }).populate('vendor', 'name email mobile');
 
@@ -314,18 +363,31 @@ export const fetchMatchingProperties = async (filters = {}) => {
     if (filters.targetPropertyName) {
       const specificProp = await Property.findOne({
         approved: true,
+        status: 'available',
         title: { $regex: new RegExp(filters.targetPropertyName, 'i') }
       }).populate('vendor', 'name email mobile');
 
       if (specificProp) {
-        // Also fetch 2 similar properties in same city for comparison
-        const relatedProps = await Property.find({
+        const relatedQuery = {
           approved: true,
-          _id: { $ne: specificProp._id },
+          status: 'available',
+          _id: {
+            $ne: specificProp._id,
+            ...(excludedIds.length > 0 ? { $nin: excludedIds } : {})
+          },
           city: specificProp.city
-        }).populate('vendor', 'name email mobile').limit(2);
+        };
+        if (filters.relatedOnly) {
+          relatedQuery.propertyType = specificProp.propertyType;
+          if (specificProp.bedrooms) relatedQuery.bedrooms = specificProp.bedrooms;
+        }
 
-        return [specificProp, ...relatedProps];
+        const relatedProps = await Property.find(relatedQuery)
+          .populate('vendor', 'name email mobile')
+          .sort({ price: 1 })
+          .limit(filters.relatedOnly ? 6 : 2);
+
+        return filters.relatedOnly ? relatedProps : [specificProp, ...relatedProps];
       }
     }
 
@@ -368,8 +430,10 @@ export const fetchMatchingProperties = async (filters = {}) => {
     if (properties.length === 0 && filters.city) {
       const relaxedQuery = {
         approved: true,
+        status: 'available',
         city: { $regex: new RegExp(filters.city, 'i') }
       };
+      if (excludedIds.length > 0) relaxedQuery._id = { $nin: excludedIds };
       if (filters.propertyType) relaxedQuery.propertyType = filters.propertyType;
 
       properties = await Property.find(relaxedQuery)
@@ -380,7 +444,9 @@ export const fetchMatchingProperties = async (filters = {}) => {
 
     // If still 0 matches and no city was found, show top verified listings overall
     if (properties.length === 0) {
-      properties = await Property.find({ approved: true, status: 'available' })
+      const fallbackQuery = { approved: true, status: 'available' };
+      if (excludedIds.length > 0) fallbackQuery._id = { $nin: excludedIds };
+      properties = await Property.find(fallbackQuery)
         .populate('vendor', 'name email mobile')
         .sort({ createdAt: -1 })
         .limit(4);
@@ -569,7 +635,9 @@ export const generateDomainAiResponse = (userMessage, properties, filters) => {
 
   // 7. DEFAULT HELPFUL FALLBACK
   return {
-    reply: `I couldn't find an exact match for your specific filters right now, but I have pulled our top verified listings in the region with excellent connectivity and high livability scores.\n\n` +
+    reply: `${filters.relatedOnly
+      ? "I couldn't find any additional verified properties matching those preferences right now."
+      : "I couldn't find a verified property matching your specific filters right now."}\n\n` +
       `You can refine your search by changing the city, adjusting your budget, or choosing a different bedroom count (e.g. "3 BHK in Hyderabad under 80 Lakhs").`,
     followUps: [
       'Find 3 BHK properties in Hyderabad under ₹80 lakhs',
@@ -767,7 +835,13 @@ export const processAiChat = async ({ message, conversationHistory = [], userPre
     if (recentQueriesStore.length > 10) recentQueriesStore.pop();
   }
 
-  if (!isPropertyRelatedQuery(trimmed)) {
+  const { filters, isPropertyQuery } = resolveConversationSearch({
+    message: trimmed,
+    conversationHistory,
+    userPreferences
+  });
+
+  if (!isPropertyQuery) {
     return {
       reply: 'I can help only with real estate queries, such as property searches, prices, locations, comparisons, home loans, investment areas, RERA, and registration.',
       properties: [],
@@ -783,8 +857,6 @@ export const processAiChat = async ({ message, conversationHistory = [], userPre
   }
 
   // 1. Extract search criteria from natural language prompt
-  const filters = extractSearchFilters(message, userPreferences || {});
-
   // 2. Query MongoDB for real-time property matches
   const matchingProperties = await fetchMatchingProperties(filters);
 

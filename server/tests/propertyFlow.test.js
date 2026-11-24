@@ -13,7 +13,10 @@ import {
 } from '../controllers/propertyController.js';
 import {
   extractSearchFilters,
+  fetchMatchingProperties,
+  generateDomainAiResponse,
   isPropertyRelatedQuery,
+  resolveConversationSearch,
 } from '../services/aiService.js';
 
 const properties = [];
@@ -228,6 +231,101 @@ test('AI assistant recognizes property queries with spelling mistakes and short 
   const filters = extractSearchFilters(query);
   assert.equal(filters.city, 'Hyderabad');
   assert.equal(filters.targetPropertyName, 'green park apartments');
+});
+
+test('AI assistant does not mistake generic property searches for named listings', () => {
+  const filters = extractSearchFilters('Show more similar properties');
+  assert.equal(filters.targetPropertyName, undefined);
+});
+
+test('AI related-property follow-ups reuse the previous search and exclude shown listings', () => {
+  const result = resolveConversationSearch({
+    message: 'Show more similar properties',
+    conversationHistory: [
+      { sender: 'user', text: 'Find 3 BHK properties in Hyderabad under 80 lakhs' },
+      { sender: 'assistant', properties: ['507f1f77bcf86cd799439011'] }
+    ],
+    userPreferences: {
+      preferredLocation: 'Mumbai',
+      propertyType: '2 BHK',
+      budget: 'Up to ₹50 Lakhs'
+    }
+  });
+
+  assert.equal(result.isPropertyQuery, true);
+  assert.equal(result.filters.city, 'Hyderabad');
+  assert.equal(result.filters.bedrooms, 3);
+  assert.equal(result.filters.maxPrice, 8000000);
+  assert.equal(result.filters.relatedOnly, true);
+  assert.deepEqual(result.filters.excludePropertyIds, ['507f1f77bcf86cd799439011']);
+});
+
+test('AI related-property searches apply inherited criteria and exclude prior results in MongoDB', async () => {
+  const resolved = resolveConversationSearch({
+    message: 'Show more similar properties',
+    conversationHistory: [
+      { sender: 'user', text: 'Find 3 BHK properties in Hyderabad under 80 lakhs' },
+      { sender: 'assistant', properties: ['507f1f77bcf86cd799439011'] }
+    ]
+  });
+  const originalFind = Property.find;
+  const originalReadyState = Property.db.readyState;
+  const queries = [];
+
+  Property.db.readyState = 1;
+  Property.find = (query) => {
+    queries.push(query);
+    const queryBuilder = {
+      populate() { return this; },
+      sort() { return this; },
+      limit() { return this; },
+      then(resolve, reject) { return Promise.resolve([]).then(resolve, reject); },
+    };
+    return queryBuilder;
+  };
+
+  try {
+    await fetchMatchingProperties(resolved.filters);
+  } finally {
+    Property.find = originalFind;
+    Property.db.readyState = originalReadyState;
+  }
+
+  assert.equal(queries[0].city.$regex.test('Hyderabad'), true);
+  assert.equal(queries[0].bedrooms, 3);
+  assert.equal(queries[0].price.$lte, 8000000);
+  assert.deepEqual(queries[0]._id.$nin, ['507f1f77bcf86cd799439011']);
+});
+
+test('AI related-property follow-ups allow new search criteria to override the prior search', () => {
+  const result = resolveConversationSearch({
+    message: 'Find another 2 BHK in Mumbai',
+    conversationHistory: [
+      { sender: 'user', text: 'Find 3 BHK properties in Hyderabad under 80 lakhs' }
+    ]
+  });
+
+  assert.equal(result.filters.city, 'Mumbai');
+  assert.equal(result.filters.bedrooms, 2);
+});
+
+test('AI loan follow-ups do not turn into related-property searches', () => {
+  const result = resolveConversationSearch({
+    message: 'Tell me more about home loan options',
+    conversationHistory: [
+      { sender: 'user', text: 'Find 3 BHK properties in Hyderabad under 80 lakhs' }
+    ]
+  });
+
+  assert.equal(result.isPropertyQuery, true);
+  assert.equal(result.filters.relatedOnly, undefined);
+});
+
+test('AI related-property response does not claim listings exist when none matched', () => {
+  const response = generateDomainAiResponse('Show more similar properties', [], { relatedOnly: true });
+
+  assert.match(response.reply, /additional verified properties/i);
+  assert.doesNotMatch(response.reply, /pulled our top verified listings/i);
 });
 
 test('AI assistant rejects unrelated requests before calling an external model', () => {

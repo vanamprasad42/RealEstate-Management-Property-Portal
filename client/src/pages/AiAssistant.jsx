@@ -137,7 +137,8 @@ const AiAssistant = () => {
     try {
       const history = messages.map(m => ({
         sender: m.sender,
-        text: m.text
+        text: m.text,
+        properties: m.properties?.map(property => property._id || property.slug).filter(Boolean)
       }));
 
       const { data } = await api.post('/ai/chat', {
